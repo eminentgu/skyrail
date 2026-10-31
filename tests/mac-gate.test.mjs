@@ -1,0 +1,9 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {MacBridge} from '../packages/macos/index.mjs';
+const bridge=()=>{const m=new MacBridge('/tmp');m.state.app='test';m.state.threadId='thread';m.state.owner='agent';m.observe=async()=>({text:'fresh',image:'test'});return m};
+test('reject wrong thread and stale epoch before dispatch',async()=>{const m=bridge();await assert.rejects(m.execute('other',0,{action:'press'}));await assert.rejects(m.execute('thread',9,{action:'press'}));});
+test('handoff invalidates queued input and waits for active action',async()=>{const m=bridge();let finish;let dispatched=0;m.rawAction=async()=>{dispatched++;await new Promise(r=>finish=r)};const active=m.execute('thread',0,{action:'press'});await Promise.resolve();const queued=m.execute('thread',0,{action:'press'});const rejected=assert.rejects(queued);const transfer=m.control(0,'human');assert.equal(m.state.owner,'none');assert.equal(m.state.transitioning,true);finish();await active;await rejected;await transfer;assert.equal(dispatched,1);assert.equal(m.state.owner,'human');assert.equal(m.state.epoch,1)});
+test('failed fresh observation leaves input closed',async()=>{const m=bridge();m.observe=async()=>{throw Error('capture failed')};await assert.rejects(m.control(0,'agent'));assert.equal(m.state.owner,'none');assert.equal(m.state.transitioning,false)});
+test('concurrent takeover only grants one transition',async()=>{const m=bridge();const one=m.control(0,'human');await assert.rejects(m.control(0,'human'),e=>e.status===409);await one;assert.equal(m.state.owner,'human')});
+test('failed application bind never commits the new target',async()=>{const m=bridge();m.rpc=async()=>{throw Error('window unavailable')};await assert.rejects(m.bind('wrong','new-thread'));assert.equal(m.state.app,'test');assert.equal(m.state.threadId,'thread');assert.equal(m.state.owner,'human')});

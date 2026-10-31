@@ -1,13 +1,21 @@
-# 架构与当前取舍
+# 原生 Mac 架构
 
-浏览器 React UI → 同源 Node HTTP / SSE 服务 → Codex app-server stdio。未来电脑帧和输入使用独立连接，由执行端仲裁器强制控制权。
+React UI → 本地同源 HTTP/SSE 协调器 → Codex app-server stdio。Codex 动态工具请求 `item/tool/call` 由协调器处理：校验线程与控制状态 → 修改操作的用户审批 → 串行输入闸门 → Swift 辅助程序 → macOS Accessibility / ScreenCaptureKit → 文字与窗口截图返回 Codex 和界面。
 
-目录：apps/client 是界面；apps/local-service 是会话协调器；packages/codex 封装运行时协议；packages/computer 目前只提供控制演示比较函数；workspaces 是每线程目录，默认不入 Git。
+用户选择一个已运行应用，辅助程序只捕获该应用的一扇窗口并通过 bundle ID 绑定输入。人工接管既可在本机直接操作，也可通过画面指针/键盘输入。画面排除 object-fit 留白后映射到窗口归一化坐标；服务端重验 thread、epoch 与 humanClientId，再串行转给 Swift，输入目标由服务端绑定的 app/windowId 决定。断开、交接与失焦会释放键鼠。模型观察仍按需截图；界面观看使用独立 SCStream 进程持续采集，JPEG 编码后经长度分帧管道进入 Node，再由独立 MJPEG HTTP 连接呈现。观看不会重建 AX 树或改变模型元素编号。帧不进入聊天 SSE；SSE 每秒只更新流状态和指标。慢客户端丢弃新到帧以限制缓冲，不排长视频队列；无订阅者时释放采集进程。窗口 ID 固定在绑定时，重连不暗换窗口。
 
-前端不获得长期 Codex 凭据。服务通过用户已认证的本地运行时工作，不复制网页登录态。服务启动时不自动启动模型任务，连接由按钮触发。聊天使用 CLI 默认模型，不硬编码账户可用性。
+控制权状态与 UI 分开。交接先将 owner 改为 none、递增 epoch，再等待已派发操作完成。排队操作在执行边界重验 epoch / thread。交还先观察再授予 agent；输入索引还需符合 agent 最近观察版本。原生调用超时后杀死辅助进程并撤销控制，结果标为未知，不自动重试。
 
-设计偏差：首版 SSE 替代 WebSocket，原子 JSON 替代 SQLite，手写轻量消息组件替代 assistant-ui，以缩小首轮兼容验证的依赖面。电脑租约仅用于模拟；尚无 TTL、clientId、执行端 drain 或新截图，因此不对外声称实现安全接管。
+## 为什么没有直接调用 Codex 桌面私有组件
 
-正式执行端不能复用演示 transition 函数直接授予输入。必须先封闭旧 epoch，等待在途动作结束，释放按键并观察，随后确认新租约。协调器失联时 fail closed。
+本机发现 @oai/sky 0.7.13 及 Computer Use 插件 1.0.1001641。插件声明 Proprietary，应用策略、授权 elicitation 与服务启动由桌面宿主管理。app-server 的正常握手不会自动取得这套桌面授权。未仿造 trusted nodeRepl、宿主元数据或私有服务身份，也没有复制/分发其二进制。
 
-官方协议参考：https://learn.chatgpt.com/docs/app-server 。当前版本从本机 `codex --version` 得出；升级前生成 schema 并重跑兼容检查。
+因此复用 Codex 任务运行时与动态工具协议；原生 Mac 操作部分自行用系统公开 API 实现。内置 Computer Use 与自建适配器之间保留架构区分，未来仅在提供公开支持的宿主接入方式时再替换。
+
+## 数据与局限
+
+Codex 持有自身凭据和线程；产品 JSON 文件保存线程映射和消息。截图在服务内存中，不写产品数据库；模型工具结果仍进入 Codex 记录。native app 只使用本机临时签名，重编译可能使权限失效。
+
+目前 epoch 只约束 Skyrail 路径，不控制其他桌面客户端或用户物理输入；没有多客户端租约和系统级自动化隔离。主机 shell / 用户已有 MCP 的防绕过仍依赖 runtime 约束和开发者指令，尚不是强制白名单产品。没有承诺生产级安全接管。
+
+参考：官方 app-server https://learn.chatgpt.com/docs/app-server 和 Computer Use https://learn.chatgpt.com/docs/computer-use 。本机生成的 schema 验证了 dynamicTools、item/tool/call 与 inputImage 输出结构。
