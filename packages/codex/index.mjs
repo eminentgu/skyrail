@@ -10,7 +10,11 @@ export class Codex extends EventEmitter {
     return this.connecting;
   }
   async initialize(){
-    this.child=spawn(process.env.CODEX_BIN||'codex',['app-server','--listen','stdio://'],{stdio:['pipe','pipe','pipe']});
+    this.child=spawn(process.env.CODEX_BIN||'codex',['app-server','--listen','stdio://','--disable','computer_use',
+      '-c','mcp_servers.computer-use.enabled=false',
+      '-c','mcp_servers.node_repl.enabled=false',
+      '-c','plugins."computer-use@openai-bundled".enabled=false',
+      '-c','plugins."unified-computer-use@openai-bundled".enabled=false'],{stdio:['pipe','pipe','pipe']});
     this.child.stderr.on('data',()=>{});
     this.child.on('error',e=>this.fail(e));
     this.child.on('exit',()=>this.fail(new Error('Codex 进程已退出，请重启本地服务')));

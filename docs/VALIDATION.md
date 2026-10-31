@@ -69,3 +69,17 @@
 - 再次独立读取 Calculator 确认应用仍存在，结果仍为 9。断开没有关闭用户应用。
 
 结论限于上述真实按钮和断开场景。非 AX 控件的 NSEvent 回退、右键、拖拽、滚动及跨应用矩阵仍需扩展验收，不宣称所有 macOS 应用已兼容。
+
+## 工具路由、专用技能与授权体验
+
+2026-10-31：用户原失败会话没有 toolVersion。读取旧 Codex 执行记录，发现两次 mcpToolCall 指向 cua_repl，状态 failed；不能将此等同于 macOS 系统权限未开。
+
+- 新增项目技能 skyrail-computer-use，quick_validate 验证通过；每轮以 skill input 注入，并提供运行时指令。
+- 真实模型路由测试 scripts/smoke-routing.mjs：用户请求“打开本机的计算器软件”，模型调用 skyrail_computer/open_app/Calculator，未调用其他 MCP。工具响应为测试桩，只验证路由。
+- 在用户原来失败的会话中重发打开应用请求，自动升级为 skyrail-mac-v2，previousCodexIds 保留一项旧编号，历史消息保留。
+- Safari 实际看到“允许并连接”卡片，确认后 open_app 完成，模型报告已打开 Calculator 并读取 1,024。系统权限仍由原生 helper 检查，未复制桌面插件的私有授权。
+- 开启“本次连接全部允许”后，真实模型通过连续 press 执行 3+4，未逐步弹确认；独立读取 Calculator AX 确认 Last Expression 为 3+4，结果为 7。服务端 mode=allow_session，pending approvals=0，turn completed。
+- 21 项测试通过，覆盖旧对话升级不丢历史、当前版本恢复、确认模式的会话绑定/撤销/换窗重置。
+- Markdown 与工具活动卡已在 Safari 查看；修复旧样式把消息头渲染成独立大气泡的问题。外部 Markdown 图片默认不加载，不启用原始 HTML。
+
+工具目录中可能仍列出宿主 MCP，未宣称运行时已严格隐藏所有替代工具；当前路由由显式技能、开发者指令及本次真实模型测试验证。

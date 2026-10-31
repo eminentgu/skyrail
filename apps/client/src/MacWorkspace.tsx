@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import {InteractiveImage} from './InteractiveImage';
-export type Lease={humanClientId?:string|null;owner:string;epoch:number;app?:string|null;threadId?:string|null;transitioning?:boolean;frame?:{windowTitle?:string;capturedAt:string;width:number;height:number}|null};
+export type Lease={approvalMode?:string;sessionId?:string|null;humanClientId?:string|null;owner:string;epoch:number;app?:string|null;threadId?:string|null;transitioning?:boolean;frame?:{windowTitle?:string;capturedAt:string;width:number;height:number}|null};
 export type StreamState={status:string;fps:number;frames:number;error?:string|null;lastFrameAt?:number};
 type Approval={id:string;threadId:string;app:string;args:{action:string;index?:number;value?:string;key?:string}};
 type Props={lease:Lease;stream?:StreamState;approvals?:Approval[];selected:string;running:boolean;full:boolean;setFull:(value:boolean)=>void;collapse:()=>void;post:(path:string,data?:object)=>Promise<any>;onSnapshot:(value:any)=>void;ensureThread:()=>Promise<string>;switchThread:(id:string)=>void};
@@ -30,6 +30,7 @@ export function MacWorkspace({lease,stream,approvals,selected,running,full,setFu
   </div>
   <div className="stream-caption"><span>{live?'● 画面连接正常':'○ 等待画面'}{live&&stream&&stream.fps>0?` · ${stream.fps} 帧/秒`:''}</span><span>{lease.owner==='human'&&lease.humanClientId===clientId?'可直接点击与输入':'接管后可直接操作画面'}</span></div>
   {approvals?.filter(a=>a.threadId===selected).map(a=><div className="approval" key={a.id}><div><strong>Codex 请求操作</strong><p>{actionLabel(a.args)}</p></div><div><button disabled={!!pending} onClick={()=>action('approval',async()=>{await post('approval',{id:a.id,allow:false})})}>拒绝</button><button className="primary" disabled={!!pending} onClick={()=>action('approval',async()=>{await post('approval',{id:a.id,allow:true})})}>允许本次</button></div></div>)}
+  {belongs&&<div className="confirmation-mode"><label htmlFor="operation-mode">操作确认</label><select id="operation-mode" value={lease.approvalMode||'ask'} disabled={!!pending||lease.transitioning} onChange={e=>{const mode=e.target.value;action('policy',async()=>onSnapshot(await post('mac/policy',{threadId:selected,expectedEpoch:lease.epoch,sessionId:lease.sessionId,mode})))}}><option value="ask">每次操作确认</option><option value="allow_session">本次连接允许全部操作</option></select><small>{lease.approvalMode==='allow_session'?'全部操作已允许 · 换应用或断开后失效':'可在授权卡中一次允许后续操作'}</small></div>}
   <div className="control"><div><strong>{label}</strong><small>{belongs?(lease.owner==='human'&&lease.humanClientId===clientId?'点击画面连接键盘，Escape 退出':'接管后才能在画面中输入'):'电脑与当前对话绑定后才能操作'}</small></div><div><button disabled={!belongs||lease.transitioning||pending==='control'} onClick={()=>control('none')}>暂停操作</button><button className="primary" disabled={!belongs||lease.transitioning||pending==='control'} onClick={()=>control(lease.owner==='agent'||(lease.owner==='human'&&lease.humanClientId!==clientId)?'human':'agent')}>{lease.transitioning?'正在交接…':lease.owner==='agent'||(lease.owner==='human'&&lease.humanClientId!==clientId)?'人工接管':'交给 Codex'}</button></div></div>
  </section>
 }

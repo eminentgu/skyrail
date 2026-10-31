@@ -19,3 +19,11 @@ Codex 持有自身凭据和线程；产品 JSON 文件保存线程映射和消�
 目前 epoch 只约束 Skyrail 路径，不控制其他桌面客户端或用户物理输入；没有多客户端租约和系统级自动化隔离。主机 shell / 用户已有 MCP 的防绕过仍依赖 runtime 约束和开发者指令，尚不是强制白名单产品。没有承诺生产级安全接管。
 
 参考：官方 app-server https://learn.chatgpt.com/docs/app-server 和 Computer Use https://learn.chatgpt.com/docs/computer-use 。本机生成的 schema 验证了 dynamicTools、item/tool/call 与 inputImage 输出结构。
+
+## 工具路由与旧会话升级
+
+旧对话未注册 dynamicTools，原执行记录实际出现 cua_repl 工具失败。v2 使用唯一工具名 skyrail_computer，并显式注入项目 skill；启动参数仅作用于 Skyrail 子进程，不改用户全局配置。mcpServerStatus 仍可能列出宿主提供的工具，因此这不是严格工具白名单隔离；真实模型路由测试和应用确认构成当前验证边界。
+
+旧 product thread 的 codexThreadId 版本不符时，新建运行时并归档 previousCodexIds；本地消息不删除，最近三十条正文以历史数据输入新线程，不能把旧失败声明当作当前权限事实。原生权限继续由 macOS 强制执行。
+
+默认逐次确认；allow_session 由聊天授权卡或电脑面板显式设置，绑定随机 sessionId，不持久化到磁盘。重新绑定窗口、断开或重启服务恢复 ask。聊天删除为可恢复的 deletedAt 标记，默认快照不返回被删除的正文，“最近删除”只返回标题及恢复入口。

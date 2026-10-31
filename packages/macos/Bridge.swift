@@ -96,6 +96,16 @@ func run(_ req: [String:Any]) async throws -> [String:Any] {
   let screen=CGRequestScreenCaptureAccess()
   return ["accessibility":trusted,"screenRecording":screen]
  }
+ if method=="openApp" {
+  let requested=req["app"] as? String ?? ""
+  let aliases=["计算器":"com.apple.calculator","本机计算器":"com.apple.calculator","calculator":"com.apple.calculator"]
+  let name=aliases[requested.lowercased()] ?? requested
+  let url=NSWorkspace.shared.urlForApplication(withBundleIdentifier:name) ?? NSWorkspace.shared.fullPath(forApplication:name).map{URL(fileURLWithPath:$0)}
+  guard let url=url else {try fail("找不到此应用，请使用已安装应用的名称或 bundle ID")}
+  let configuration=NSWorkspace.OpenConfiguration();configuration.activates=false
+  let launched=try await NSWorkspace.shared.openApplication(at:url,configuration:configuration)
+  return ["app":launched.bundleIdentifier ?? name,"name":launched.localizedName ?? requested]
+ }
  if method=="apps" { return ["apps":NSWorkspace.shared.runningApplications.filter{$0.activationPolicy == .regular && $0.bundleIdentifier != nil}.map{["id":$0.bundleIdentifier!,"name":$0.localizedName ?? $0.bundleIdentifier!]}] }
  if method=="releaseInput" {releaseInput();return ["ok":true]}
  let appID=req["app"] as? String ?? "";let app=try appFor(appID)
