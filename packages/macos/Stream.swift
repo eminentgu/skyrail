@@ -31,7 +31,7 @@ final class WindowStream: NSObject, SCStreamOutput, SCStreamDelegate {
   do {
    guard CGPreflightScreenCaptureAccess() else {throw Failure(message:"屏幕录制未授权，请在系统设置中允许 Skyrail Mac")}
    let app=try appFor(appID)
-   let content=try await SCShareableContent.excludingDesktopWindows(true,onScreenWindowsOnly:false)
+   let content=try await captureContent()
    let windows=content.windows.filter{$0.owningApplication?.processID==app.processIdentifier && $0.windowLayer==0 && $0.frame.width>80 && $0.frame.height>80}
    guard let window=windows.first(where:{windowID == nil || $0.windowID==windowID}) else {throw Failure(message:"窗口已关闭，请重新连接应用")}
    let filter=SCContentFilter(desktopIndependentWindow:window)
@@ -39,7 +39,7 @@ final class WindowStream: NSObject, SCStreamOutput, SCStreamDelegate {
    if #available(macOS 14.2,*) {config.ignoreShadowsSingleWindow=true}
    let scale=min(1,1600/window.frame.width)
    config.width=max(2,Int(window.frame.width*scale));config.height=max(2,Int(window.frame.height*scale))
-   config.minimumFrameInterval=CMTime(value:1,timescale:15);config.queueDepth=3;config.showsCursor=true
+   config.minimumFrameInterval=CMTime(value:1,timescale:15);config.queueDepth=3;config.showsCursor=false;config.capturesAudio=false
    config.pixelFormat=kCVPixelFormatType_32BGRA
    let output=WindowStream();let stream=SCStream(filter:filter,configuration:config,delegate:output)
    try stream.addStreamOutput(output,type:.screen,sampleHandlerQueue:DispatchQueue(label:"skyrail.frames",qos:.userInteractive))

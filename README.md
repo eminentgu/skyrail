@@ -95,3 +95,9 @@ CI 检查 Linux / macOS 下的 JS 测试和前端构建，并在 macOS 编译 Sw
 [贡献指南](CONTRIBUTING.md) · [使用与故障排查](SUPPORT.md) · [报告问题](https://github.com/eminentgu/skyrail/issues/new/choose) · [变更记录](CHANGELOG.md) · [实施计划](docs/PLAN.md) · [架构](docs/ARCHITECTURE.md)
 
 项目代码采用 [MIT](LICENSE)；依赖和外部服务适用各自许可证与条款。欢迎中文或英文反馈，维护为尽力支持，无响应时限承诺。
+
+### 显示器熄屏与系统睡眠
+
+默认在观看窗口、执行模型任务或获取窗口观察时，Skyrail 临时唤醒并保持系统 / 显示器运行；会话活动结束后释放，不永久修改系统电源设置。**物理屏幕可能亮起。** 整机强制睡眠或关机后，本机服务无法继续执行。
+
+如部署已有独立虚拟显示器，可在启动 / 安装服务时设置 `SKYRAIL_DISPLAY_MODE=headless`，关闭 Skyrail 主动亮屏，仅保持系统运行。这个选项不会创建虚拟显示器，尚未通过物理屏幕熄灭、合盖及锁屏的完整验证。详见 [休眠排障](SUPPORT.md#熄屏睡眠与--3811)。

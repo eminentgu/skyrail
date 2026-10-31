@@ -96,3 +96,13 @@
 - MIT、贡献 / 支持 / 安全说明、Issue / PR 模板、GitHub CI 和 Dependabot 配置加入；CI 结果以推送后的 Actions 为准。安全模式扫描无命中，不能替代完整安全审计。
 - 常驻进程强制重启复验：`launchctl kickstart -k` 后在约 6 秒内恢复到 Node 的父进程为原生 wrapper；两项权限仍为 true，未再连接残留孤儿进程。
 - 未完成的验收已公开跟踪：[原生采集与全屏](https://github.com/eminentgu/skyrail/issues/1)、[手机真机矩阵](https://github.com/eminentgu/skyrail/issues/2)。
+
+## 2026-11-01：熄屏与采集根因复现
+
+同一份 SCWindow、尺寸和过滤器，在 Typora 与 Calculator 上对照配置：`showsCursor=true` 均报 -3811；`showsCursor=false` 均成功返回截图。改变阴影、透明度或 display filter 未解决问题。已将观察和 SCStream 均改为不采集系统光标，并明确禁用音频采集。
+
+显示器熄屏时 `SCShareableContent.displays` 为空。测试版 SCStream 可报告 started / heartbeat，但没有帧；必须以收到实际帧判断可用。临时唤醒显示器后，修订后的采集进程在约 6 秒内收到 14 帧、384866 字节。另一次对照在熄屏前收到 14 帧，熄屏后即使向 Calculator 发送输入仍没有新帧；这不证明熄屏下的电脑操作或实时观看可用。
+
+新增 MacPower：有观看者、模型轮次或窗口观察时按会话持有 caffeinate 电源断言，默认允许唤醒和保持显示器；没有活动后释放，不永久修改 pmset。`SKYRAIL_DISPLAY_MODE=headless` 只保持系统运行、不请求亮屏，供已有独立虚拟显示器的部署使用，不能单独解决无显示器的采集。
+
+原生程序重编译后的临时签名改变，当前常驻服务两项权限重新变为 false，等待本人刷新系统授权；不能以交互诊断进程成功替代常驻服务验收。整机强制睡眠、关机、合盖行为及锁屏不通过本功能绕过。

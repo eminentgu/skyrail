@@ -7,6 +7,11 @@ import UniformTypeIdentifiers
 
 struct Failure: Error { let message: String }
 func fail(_ message: String) throws -> Never { throw Failure(message: message) }
+func captureContent() async throws -> SCShareableContent {
+ let content=try await SCShareableContent.excludingDesktopWindows(true,onScreenWindowsOnly:false)
+ guard !content.displays.isEmpty else {try fail("当前没有可采集的显示器，可能已经熄屏或合盖。请唤醒显示器或启用虚拟显示器后重新连接；这不是辅助功能权限错误。")}
+ return content
+}
 func ax(_ element: AXUIElement, _ attr: String) -> CFTypeRef? { var value: CFTypeRef?; AXUIElementCopyAttributeValue(element,attr as CFString,&value); return value }
 func text(_ element: AXUIElement,_ attr: String)->String { (ax(element,attr) as? String) ?? "" }
 var elements: [AXUIElement] = []
@@ -121,7 +126,11 @@ func humanInput(_ req:[String:Any],app:NSRunningApplication) async throws -> [St
 }
 func run(_ req: [String:Any]) async throws -> [String:Any] {
  let method=req["method"] as? String ?? ""
- if method=="health" { return ["accessibility":AXIsProcessTrusted(),"screenRecording":CGPreflightScreenCaptureAccess(),"platform":"macos"] }
+ if method=="health" {
+  let screen=CGPreflightScreenCaptureAccess();var result:[String:Any] = ["accessibility":AXIsProcessTrusted(),"screenRecording":screen,"platform":"macos"]
+  if screen,let content=try? await SCShareableContent.excludingDesktopWindows(true,onScreenWindowsOnly:false) {result["activeDisplays"]=content.displays.count}
+  return result
+ }
  if method=="requestPermissions" {
   let options=[kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary
   let trusted=AXIsProcessTrustedWithOptions(options)
@@ -148,10 +157,10 @@ func run(_ req: [String:Any]) async throws -> [String:Any] {
  }
  if method=="observe" {
   guard CGPreflightScreenCaptureAccess() else { try fail("请在系统设置中授予屏幕录制权限，然后重新启动 Skyrail") }
-  let content=try await SCShareableContent.excludingDesktopWindows(true,onScreenWindowsOnly:false)
+  let content=try await captureContent()
   guard let window=content.windows.first(where:{$0.owningApplication?.processID==app.processIdentifier && $0.windowLayer==0 && $0.frame.width>80 && $0.frame.height>80 && ((req["windowId"] as? UInt32) == nil || $0.windowID == req["windowId"] as? UInt32)}) else { try fail("没有可捕获的应用窗口，请打开窗口后重试") }
   let filter=SCContentFilter(desktopIndependentWindow:window)
-  let config=SCStreamConfiguration();if #available(macOS 14.2,*) {config.ignoreShadowsSingleWindow=true};config.width=Int(window.frame.width);config.height=Int(window.frame.height);config.showsCursor=true
+  let config=SCStreamConfiguration();if #available(macOS 14.2,*) {config.ignoreShadowsSingleWindow=true};config.width=Int(window.frame.width);config.height=Int(window.frame.height);config.showsCursor=false;config.capturesAudio=false
   let image=try await SCScreenshotManager.captureImage(contentFilter:filter,configuration:config)
   let bytes=NSMutableData();guard let dest=CGImageDestinationCreateWithData(bytes,UTType.png.identifier as CFString,1,nil) else { try fail("图像编码失败") };CGImageDestinationAddImage(dest,image,nil);CGImageDestinationFinalize(dest)
   elements=[];observedApp=appID;var lines=[String]();if AXIsProcessTrusted() { walk(AXUIElementCreateApplication(app.processIdentifier),0,&lines) } else { lines.append("辅助功能未授权；仅观看，不可操作") }

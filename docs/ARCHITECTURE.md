@@ -37,3 +37,9 @@ The login page uses `Referrer-Policy: same-origin`: `no-referrer` caused real br
 `scripts/install-service.mjs` creates per-user launch agents. The local service starts through the native `Skyrail Mac.app --run-service` wrapper so TCC attributes computer access to the app. A managed Node service checks wrapper liveness to exit after launchctl kills the wrapper, preventing stale orphan services from retaining the port. This does not bypass TCC or solve temporary signing identity changes.
 
 Touch input uses a separate gesture recognizer. Scroll starts without a remote mouse-down; drag is explicit. Browser input remains serialized and lease-gated. Cancelling a touch gesture releases held input. The native adapter resolves basic left-clicks within the selected AX window geometry before falling back to application hit-testing and window events; this path still needs cross-Space application coverage.
+
+## Display availability and session power
+
+The local reproduction isolated -3811 to `showsCursor=true`; snapshots and video now set it false and explicitly disable audio. A shared content check distinguishes an empty display list from missing Accessibility permission. Native error messages do not claim that starting a capture or receiving heartbeats proves that frames exist.
+
+MacPower holds a process-scoped caffeinate assertion while viewers, model turns or snapshot requests exist. The default uses display wake plus system idle-sleep prevention; a successful bind has a brief handoff allowance for its video subscriber. Closing the service releases all holds. The headless option omits physical display wake and requires a separately validated virtual display. No permanent power setting, TCC database modification, login bypass or OS sleep bypass is implemented.

@@ -6,6 +6,7 @@ import {createServer as createViteServer} from 'vite';
 import {Codex} from '../../packages/codex/index.mjs';
 import {prepareSession} from '../../packages/codex/session.mjs';
 import {MacStream} from '../../packages/macos/stream.mjs';
+import {MacPower} from '../../packages/macos/power.mjs';
 import {MacBridge,computerTools,macInstructions} from '../../packages/macos/index.mjs';
 const root=path.resolve(import.meta.dirname,'../..');process.chdir(root);
 await mkdir('.data',{recursive:true});await mkdir('workspaces',{recursive:true});
@@ -17,11 +18,14 @@ const skillText=await readFile(skillPath,'utf8');
 const instructions=macInstructions+'\n\n'+skillText;
 const codex=new Codex();let runtime='disconnected';const resumed=new Set();const clients=new Set();
 const stream=new MacStream(root);
+const power=new MacPower({onError:()=>console.warn('Skyrail could not prevent system idle sleep')});
+const syncPower=()=>power.setActive(stream.clients.size>0||threads.some(t=>['running','submitting'].includes(t.status)));
+stream.on('activity',syncPower);
 stream.on('change',()=>publish());
-const mac=new MacBridge(root);const approvals=new Map();
+const mac=new MacBridge(root,{power});const approvals=new Map();
 mac.on('change',()=>publish());
 const snapshot=()=>({threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
-function publish(){const data='data: '+JSON.stringify(snapshot())+'\n\n';for(const c of clients)c.write(data)}
+function publish(){syncPower();const data='data: '+JSON.stringify(snapshot())+'\n\n';for(const c of clients)c.write(data)}
 codex.on('offline',()=>{runtime='disconnected';resumed.clear();for(const t of threads)if(['running','submitting'].includes(t.status))t.status='interrupted';save();publish()});
 codex.on('notification',({method,params:p})=>{
  const t=threads.find(t=>t.codexId===p?.threadId);if(!t)return;
@@ -160,7 +164,7 @@ const server=http.createServer(async(req,res)=>{
 });
 server.listen(port,'127.0.0.1',()=>console.log(`Skyrail ready: http://${host}`));
 let closing=false;
-async function close(){if(closing)return;closing=true;stream.stop();await mac.close();codex.close();for(const c of clients)c.end();await vite.close();server.close();process.exit(0)}
+async function close(){if(closing)return;closing=true;power.close();stream.stop();await mac.close();codex.close();for(const c of clients)c.end();await vite.close();server.close();process.exit(0)}
 process.on('SIGINT',close);process.on('SIGTERM',close);
 // launchctl can terminate the native wrapper before its Node child. Do not leave
 // an orphan holding the port and the previous macOS permission attribution.

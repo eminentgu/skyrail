@@ -14,3 +14,9 @@
 - 本机 Mac 窗口连续串流、画面输入、人工接管与断开。
 - Skyrail computer-use 技能、应用打开授权、旧对话迁移。
 - 本次连接全部允许、Markdown 对话、可恢复删除。
+
+### Follow-up fixes
+
+- Isolate and disable system-cursor capture that reproduced -3811 on two Mac applications.
+- Report unavailable displays separately from missing system permissions.
+- Hold session-scoped system/display wake assertions during active viewing and model tasks; release on inactivity. Existing virtual-display setups can opt out of physical wake with headless mode.

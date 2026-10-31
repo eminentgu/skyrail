@@ -11,7 +11,7 @@ await mkdir(directory,{recursive:true});
 const escape=value=>String(value).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
 const string=value=>`<string>${escape(value)}</string>`;
 const domain=`gui/${process.getuid()}`;
-const common={PATH:process.env.PATH,SKYRAIL_NODE:process.execPath,...(process.env.CODEX_BIN?{CODEX_BIN:process.env.CODEX_BIN}:{})};
+const common={PATH:process.env.PATH,SKYRAIL_NODE:process.execPath,...(process.env.CODEX_BIN?{CODEX_BIN:process.env.CODEX_BIN}:{}),...(process.env.SKYRAIL_DISPLAY_MODE?{SKYRAIL_DISPLAY_MODE:process.env.SKYRAIL_DISPLAY_MODE}:{})};
 for(const [suffix,args,extra] of [
  ['service',[helper,'--run-service',root],{SKYRAIL_MANAGED_SERVICE:'1'}],
  ['gateway',[process.execPath,path.join(root,'apps/remote-gateway/server.mjs')],{SKYRAIL_REMOTE_HOST:process.env.SKYRAIL_REMOTE_HOST}]
