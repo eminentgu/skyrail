@@ -27,3 +27,13 @@ Codex 持有自身凭据和线程；产品 JSON 文件保存线程映射和消�
 旧 product thread 的 codexThreadId 版本不符时，新建运行时并归档 previousCodexIds；本地消息不删除，最近三十条正文以历史数据输入新线程，不能把旧失败声明当作当前权限事实。原生权限继续由 macOS 强制执行。
 
 默认逐次确认；allow_session 由聊天授权卡或电脑面板显式设置，绑定随机 sessionId，不持久化到磁盘。重新绑定窗口、断开或重启服务恢复 ask。聊天删除为可恢复的 deletedAt 标记，默认快照不返回被删除的正文，“最近删除”只返回标题及恢复入口。
+
+## Remote gateway and managed Mac service
+
+`apps/remote-gateway/server.mjs` listens on loopback 4318 and authenticates before proxying to 4317. The password lives in ignored `.data/remote-access.txt` with mode 0600; cookie signatures use a process-local random key and expire within 24 hours. Host and Origin are checked, logins are rate limited, SSE and MJPEG use streaming HTTP proxying. HTTPS termination and DNS/tunnel configuration belong to the operator. Vite HMR WebSockets are not proxied.
+
+The login page uses `Referrer-Policy: same-origin`: `no-referrer` caused real browser form submissions to send `Origin: null`, correctly rejected by the origin gate. The fix preserves origin validation.
+
+`scripts/install-service.mjs` creates per-user launch agents. The local service starts through the native `Skyrail Mac.app --run-service` wrapper so TCC attributes computer access to the app. A managed Node service checks wrapper liveness to exit after launchctl kills the wrapper, preventing stale orphan services from retaining the port. This does not bypass TCC or solve temporary signing identity changes.
+
+Touch input uses a separate gesture recognizer. Scroll starts without a remote mouse-down; drag is explicit. Browser input remains serialized and lease-gated. Cancelling a touch gesture releases held input. The native adapter resolves basic left-clicks within the selected AX window geometry before falling back to application hit-testing and window events; this path still needs cross-Space application coverage.

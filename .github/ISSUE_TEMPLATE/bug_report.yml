@@ -1,0 +1,24 @@
+name: Bug report / 问题反馈
+description: 报告可复现的问题；请勿上传密码或私人桌面。
+labels: [bug]
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: commit、macOS、浏览器；触屏问题请注明手机型号与系统。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps and expected result / 步骤与预期
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result / 实际结果
+      description: 是否全屏、目标应用、权限与控制权状态；截图及日志请脱敏。
+    validations:
+      required: true

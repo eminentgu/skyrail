@@ -159,5 +159,12 @@ const server=http.createServer(async(req,res)=>{
  }catch(e){json(res,e.status||500,{message:e.message})}
 });
 server.listen(port,'127.0.0.1',()=>console.log(`Skyrail ready: http://${host}`));
-async function close(){stream.stop();await mac.close();codex.close();for(const c of clients)c.end();await vite.close();server.close();process.exit(0)}
+let closing=false;
+async function close(){if(closing)return;closing=true;stream.stop();await mac.close();codex.close();for(const c of clients)c.end();await vite.close();server.close();process.exit(0)}
 process.on('SIGINT',close);process.on('SIGTERM',close);
+// launchctl can terminate the native wrapper before its Node child. Do not leave
+// an orphan holding the port and the previous macOS permission attribution.
+if(process.env.SKYRAIL_MANAGED_SERVICE==='1'){
+ const wrapperPid=process.ppid;
+ setInterval(()=>{try{process.kill(wrapperPid,0)}catch{void close()}},1000).unref();
+}

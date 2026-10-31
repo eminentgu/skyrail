@@ -1,67 +1,97 @@
 # Skyrail 天轨
 
-直接在你的 Mac 上使用本地 Codex 的聊天工作台。聊天、应用窗口观察、操作审批、人工接管与交还在同一页面完成。项目位置：`/Users/Eminent/CodeSpace/skyrail`。
+[![CI](https://github.com/eminentgu/skyrail/actions/workflows/ci.yml/badge.svg)](https://github.com/eminentgu/skyrail/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## 启动
+**Local-first Codex chat, live Mac windows, and human takeover.**
+
+把本机 Codex 对话、Mac 应用窗口串流和人工接管放在同一页面。直接适配你的 Mac，不需要 Linux 虚拟机。电脑用鼠标与键盘，手机用触屏操作。
+
+> 早期 0.x 项目。已有可运行实现，跨应用输入、原生全屏与手机真机兼容仍在持续验收；见 [验证记录](docs/VALIDATION.md)。
+
+## Quick start / 快速开始
 
 需要 macOS 14+、Xcode Command Line Tools、Node.js 22+、已登录的 Codex CLI。
 
 ```sh
+git clone https://github.com/eminentgu/skyrail.git
+cd skyrail
 npm ci
 npm run setup:mac
 npm run dev
 ```
 
-打开 http://127.0.0.1:4317 。找不到 Codex 时设置 `CODEX_BIN=/absolute/path/to/codex`。当前兼容测试版本是 Codex `0.165.0-alpha.1.2`。`PORT` 可调整监听端口，使用 127.0.0.1 访问。
+打开 **http://127.0.0.1:4317**。找不到 Codex 时设置 `CODEX_BIN=/absolute/path/to/codex`。当前实际测试的 Codex CLI 为 `0.165.0-alpha.1.2`；其他版本未承诺兼容。
 
-## 使用路径
+第一次使用，在系统设置「辅助功能」和「屏幕与系统音频录制」中允许项目 `.data/Skyrail Mac.app`。身份验证由本人完成；临时签名重编译后可能需移除旧授权再重新添加。
 
-1. 点击“连接 Codex”，在历史菜单创建新对话。
-2. 打开电脑面板，点击“检测 Mac 应用”。
-3. 如缺少权限，点击“申请系统权限”。在系统设置的辅助功能与屏幕录制中允许 `Skyrail Mac.app`；它位于项目 `.data/` 目录。Touch ID 或密码必须由本人完成。辅助程序重新编译会改变临时签名，可能需要重新授权。
-4. 选择一个已运行的应用及具体窗口，点击“连接应用”。窗口串流真实来自 ScreenCaptureKit。辅助功能未授权时可以观看，不能点击输入。
-5. 点击“交还 Codex”，然后发送任务。Codex 通过 `mac_computer` 工具观察与操作；默认每次修改显示审批卡；也可点击“本次连接全部允许”，后续操作不再逐步确认。电脑面板可随时切回逐次确认，断开或换应用后自动恢复默认。
-6. “人工接管”先撤销新输入并等待当前原子操作结束，然后请求中断轮次。可以直接在串流画面里点击、拖动、滚轮、输入文字，也可以直接使用 Mac；Escape 释放画面键盘捕获。交还时会重新截图。之后发送“从当前状态继续”开启下一轮。
-7. “暂停电脑操作”关闭后续电脑输入；“停止任务”还请求中断 Codex。已发生的外部操作不能撤回。
+## 使用
 
-窗口由独立 SCStream 进程持续采集，通过经过会话鉴权的 MJPEG 连接传到浏览器。配置上限 15 FPS、最长边宽度 1600px；实际帧率取决于窗口更新、尺寸和负载。无需手动刷新，Codex 操作期间也持续观看。收起或隐藏网页后停止订阅，无观看者时释放采集进程。画面与模型观察分离，视频不会按帧发送给模型，也不修改 AX 元素编号。人工接管后，画面坐标会按窗口等比缩放与留白反算，再由 macOS 发送给绑定应用；文字支持中文组合输入和粘贴。浏览器常用退出快捷键仍可能被浏览器保留。点击“断开窗口”会释放输入、关闭串流并清除线程绑定，不会关闭 Mac 应用本身。
+1. 连接 Codex 并创建对话，可直接请求“打开计算器”。Skyrail 会在聊天中请求连接应用。
+2. 也可在电脑面板选择已运行的应用和具体窗口。画面由 ScreenCaptureKit 连续采集。
+3. “人工接管”撤销模型电脑输入，可在画面里操作；“交给 Codex”后发送任务继续。
+4. 默认逐次确认电脑写操作；“本次连接允许全部操作”只对当前窗口连接生效，断开或换应用后恢复默认。
+5. “断开窗口”释放输入、停止串流、清除绑定，不关闭目标应用。
+6. 历史对话可删除到“最近删除”，支持恢复；不会永久擦除 Codex 历史或任务文件。
 
-## 当前实现
+### 手机触屏
 
-React / TypeScript 界面 + 本地 Node 服务 + Codex app-server stdio + 自建 Swift macOS 适配器。适配器使用 ScreenCaptureKit 截图和 Accessibility 观察、按下元素、填写元素，以及向选定应用发送有限按键。没有 Linux 虚拟机、VNC 或宿主 Cookie 复制。
+| 手势 / 按钮 | 行为 |
+| --- | --- |
+| 轻点画面 | 点击对应控件，不自动弹出键盘 |
+| 单指滑动 | 滚动内容，避免误触发鼠标拖拽 |
+| 切换“拖拽”后移动 | 按住并拖动鼠标；完成后切回“点按 / 滚动” |
+| “键盘” | 显式唤起软键盘，提供 Tab、回车和退格 |
+| 页面切走、取消或多指介入 | 取消手势并释放输入 |
 
-电脑写操作按当前确认模式执行，并绑定线程、所选应用、控制 epoch 与观察版本。全部允许仅限本次窗口连接。交接期间关闭写入；旧线程、迟到操作和失效元素索引拒绝执行。辅助程序异常或超时关闭输入，不自动重试未知操作。截图只留在内存供页面显示，但作为工具结果提交给 Codex 后，其保留方式遵循 Codex 运行时。
+横屏或“放大”工作区更适合小控件。不支持画面内捏合缩放；iOS / Android 真机、跨 Space 拖拽和特殊控件仍需继续验证。
 
-聊天记录在 `.data/threads.json` 原子保存；任务目录在 `workspaces/`，都不入 Git。运行时凭据仍由 Codex 管理。服务仅监听 loopback 并检查 Host、Origin、命令令牌；事件通过 HttpOnly Cookie 认证。
+## 远程访问与常驻
 
-## 验证
+本地服务只监听 loopback。可选网关在 **127.0.0.1:4318** 增加密码登录，再通过自己的 HTTPS tunnel 访问。
 
 ```sh
-npm run build
+SKYRAIL_REMOTE_HOST=your.domain.example node apps/remote-gateway/server.mjs
+```
+
+首次运行生成密码并仅保存到 `.data/remote-access.txt`。不要上传此文件或把密码发到 Issue。登录 Cookie 有效 24 小时，网关重启后需重新登录。**公网 tunnel 应映射 4318，不能直接映射 4317。** 项目不提供公共演示实例。
+
+macOS 登录后自动启动服务和网关：
+
+```sh
+SKYRAIL_REMOTE_HOST=your.domain.example CODEX_BIN=/absolute/path/to/codex npm run service:install
+```
+
+安装器使用当前 Node 路径生成 `~/Library/LaunchAgents/local.skyrail.{service,gateway}.plist`，替换这两个同名任务并重启，日志在 `.data/`。它不会创建或修改 Cloudflare tunnel。更新 Node 路径后需重新安装服务。
+
+停止常驻：
+
+```sh
+launchctl bootout gui/$(id -u)/local.skyrail.service
+launchctl bootout gui/$(id -u)/local.skyrail.gateway
+```
+
+停止后可删除上述两个 plist 取消下次登录启动。安装常驻服务前先退出手动启动的 `npm run dev`，避免端口占用。
+
+## 实现与边界
+
+React / TypeScript → loopback Node 服务 → Codex app-server stdio；Swift 负责 ScreenCaptureKit 和 Accessibility。持续视频走单独的 MJPEG 连接，不会逐帧发送给模型。配置上限 15 FPS、最长边 1600px，不代表所有设备的实测表现。
+
+电脑操作绑定线程、应用、epoch 和浏览器客户端。模型通过显式注入的 [skyrail-computer-use](skills/skyrail-computer-use/SKILL.md) 调用 `skyrail_computer`。当前代码使用 Vite 中间件运行，构建产物尚非独立生产部署；原生适配器未稳定签名 / 公证。
+
+聊天保存在 `.data/threads.json`，任务目录是 `workspaces/`，均不入 Git。Codex 的 shell / MCP 能力不是 OS 沙箱；GUI 路由指令也不等于绝对隔离。远程网关是单用户认证，不是多用户权限系统。参见 [安全边界](SECURITY.md)。
+
+## 开发与支持
+
+```sh
 npm test
-node scripts/smoke-protocol.mjs
+npm run build
+npm run setup:mac  # 修改 Swift 后
 ```
 
-最后一个测试会调用真实 Codex 模型，验证动态工具协议，但不操作 Mac。详细证据见 [验证记录](docs/VALIDATION.md)。
+CI 检查 Linux / macOS 下的 JS 测试和前端构建，并在 macOS 编译 Swift；不会调用真实模型或授予系统权限。
 
-## 开发预览的边界
+`node scripts/smoke-protocol.mjs` 和 `node scripts/smoke-routing.mjs` 会调用真实 Codex 模型，分别检查协议及路由，不能替代真实 Mac 输入验收。
 
-当前是一个可运行的 macOS 开发版本，尚未达到完整发布验收。尚缺 SQLite 事件补齐、完整审批类型、文件下载管理、稳定签名与安装包。原生适配器只能操作已运行应用的 AX 元素；不支持 AX 的控件会明确失败。对话运行期间的补充要求需等当前轮次结束。旧版本对话会在下次发送时自动创建带 Skyrail 工具的新运行时，保留本地聊天和旧运行时编号，并以历史数据补入近期上下文。
+[贡献指南](CONTRIBUTING.md) · [使用与故障排查](SUPPORT.md) · [报告问题](https://github.com/eminentgu/skyrail/issues/new/choose) · [变更记录](CHANGELOG.md) · [实施计划](docs/PLAN.md) · [架构](docs/ARCHITECTURE.md)
 
-Codex 自带 shell 和本机配置的 MCP 属于运行时能力；本产品通过开发者指令要求所有 GUI 操作只走电脑闸门，未知审批默认拒绝，但这不等于操作系统级沙箱隔离，也不能仲裁用户其他 Codex 会话。使用时避免其他自动化同时操作同一应用。当前不作为无人值守或不可信任务执行平台。
-
-`npm start` 与 `npm run dev` 都使用本地 Vite 中间件；`npm run build` 检查类型并生成 dist，尚非独立生产服务。许可证及正式名称商标核查未完成。
-
-[实施计划](docs/PLAN.md) · [架构](docs/ARCHITECTURE.md) · [设计依据](docs/DESIGN.md)
-
-## 电脑操作技能与聊天
-
-项目技能位于 [skills/skyrail-computer-use/SKILL.md](skills/skyrail-computer-use/SKILL.md)，每轮通过 app-server skill input 显式加载。`skyrail_computer` 支持 status、list_apps、open_app、observe 及基础输入。模型可以从对话请求打开应用，用户在聊天内确认连接后继续，无须先手动绑定。macOS 系统权限、应用确认与控制权分别显示。未实现的桌面宿主授权不会被伪造或自动放行。
-
-```sh
-node scripts/smoke-routing.mjs
-```
-
-该冒烟测试调用真实模型并使用固定工具响应，验证模型选用 Skyrail 路由，不执行真实 GUI 操作。
-
-对话支持 Markdown、工具活动与内嵌审批。历史列表可删除对话；删除会移到“最近删除”，可撤销或恢复，不会永久擦除 Codex 执行历史或任务文件。正在执行的对话需先停止。
+项目代码采用 [MIT](LICENSE)；依赖和外部服务适用各自许可证与条款。欢迎中文或英文反馈，维护为尽力支持，无响应时限承诺。

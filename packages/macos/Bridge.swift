@@ -33,6 +33,37 @@ func releaseInput() {
 func eventFlags(_ req:[String:Any])->CGEventFlags {
  var flags=CGEventFlags();if req["shift"] as? Bool == true {flags.insert(.maskShift)};if req["meta"] as? Bool == true {flags.insert(.maskCommand)};if req["ctrl"] as? Bool == true {flags.insert(.maskControl)};if req["alt"] as? Bool == true {flags.insert(.maskAlternate)};return flags
 }
+func elementRect(_ element:AXUIElement)->CGRect? {
+ guard let p=ax(element,kAXPositionAttribute),let s=ax(element,kAXSizeAttribute),CFGetTypeID(p)==AXValueGetTypeID(),CFGetTypeID(s)==AXValueGetTypeID() else {return nil}
+ var point=CGPoint.zero;var size=CGSize.zero
+ guard AXValueGetValue(p as! AXValue,.cgPoint,&point),AXValueGetValue(s as! AXValue,.cgSize,&size) else {return nil}
+ return CGRect(origin:point,size:size)
+}
+func pressByWindowGeometry(app:NSRunningApplication,window:SCWindow,x:Double,y:Double)->Bool {
+ let root=AXUIElementCreateApplication(app.processIdentifier)
+ guard let windows=ax(root,kAXWindowsAttribute) as? [AXUIElement] else {return false}
+ // AX windows retain their own geometry even when the viewer enters another Space.
+ let candidates=windows.compactMap { element -> (AXUIElement,CGRect,Double)? in
+  guard let rect=elementRect(element) else{return nil}
+  let titlePenalty=text(element,kAXTitleAttribute)==(window.title ?? "") ? 0.0:10000.0
+  return (element,rect,titlePenalty+abs(rect.width-window.frame.width)+abs(rect.height-window.frame.height))
+ }.sorted{$0.2<$1.2}
+ guard let target=candidates.first else{return false}
+ let point=CGPoint(x:target.1.minX+x*target.1.width,y:target.1.minY+y*target.1.height)
+ var hits:[(AXUIElement,CGFloat)]=[];var count=0
+ func visit(_ element:AXUIElement,_ depth:Int){
+  count+=1;if count>2500||depth>22{return}
+  if let rect=elementRect(element),rect.width>0,rect.height>0,rect.contains(point) {hits.append((element,rect.width*rect.height))}
+  if let children=ax(element,kAXChildrenAttribute) as? [AXUIElement] {for child in children {visit(child,depth+1)}}
+ }
+ visit(target.0,0)
+ for (element,_) in hits.sorted(by:{$0.1<$1.1}) {
+  if AXUIElementPerformAction(element,kAXPressAction as CFString) == .success {return true}
+  let role=text(element,kAXRoleAttribute)
+  if [kAXTextFieldRole,kAXTextAreaRole,kAXComboBoxRole].contains(role),AXUIElementSetAttributeValue(element,kAXFocusedAttribute as CFString,kCFBooleanTrue) == .success {return true}
+ }
+ return false
+}
 func humanInput(_ req:[String:Any],app:NSRunningApplication) async throws -> [String:Any] {
  let kind=req["kind"] as? String ?? ""
  if kind=="text" {
@@ -68,6 +99,7 @@ func humanInput(_ req:[String:Any],app:NSRunningApplication) async throws -> [St
  guard kind=="up" else {try fail("无效输入类型")}
  defer {heldRelease=nil;heldMouse=nil;pointerStart=nil;pointerDragged=false}
  if !pointerDragged && button == .left {
+  if pressByWindowGeometry(app:app,window:window,x:x,y:y) {return ["ok":true,"route":"window-ax-geometry"]}
   // Coordinate click is resolved against this app's accessibility tree, including
   // background windows. Public PID mouse posting alone is ignored by some apps.
   var hit:AXUIElement?
@@ -146,6 +178,13 @@ func run(_ req: [String:Any]) async throws -> [String:Any] {
 @main struct Bridge {
  @MainActor static func main() async {
   _ = NSApplication.shared
+  if CommandLine.arguments.count >= 3 && CommandLine.arguments[1] == "--run-service" {
+   let root=CommandLine.arguments[2];let process=Process()
+   process.executableURL=URL(fileURLWithPath:ProcessInfo.processInfo.environment["SKYRAIL_NODE"] ?? "/usr/bin/node")
+   process.arguments=[root+"/apps/local-service/server.mjs"];process.currentDirectoryURL=URL(fileURLWithPath:root)
+   process.standardOutput=FileHandle.standardOutput;process.standardError=FileHandle.standardError
+   do {try process.run();process.waitUntilExit();exit(process.terminationStatus)}catch{fputs("Skyrail service could not start\n",stderr);exit(1)}
+  }
   if CommandLine.arguments.count >= 3 && CommandLine.arguments[1] == "--stream" {
    let id=CommandLine.arguments.count>3 ? UInt32(CommandLine.arguments[3]) : nil
    await WindowStream.capture(appID:CommandLine.arguments[2],windowID:id);return

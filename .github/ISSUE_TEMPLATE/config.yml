@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Support / 使用与排障
+    url: https://github.com/eminentgu/skyrail/blob/main/SUPPORT.md
+    about: 先检查权限、远程登录与触屏排障说明。
+  - name: Security / 安全问题
+    url: https://github.com/eminentgu/skyrail/blob/main/SECURITY.md
+    about: 请勿在公共 Issue 披露凭据或漏洞利用细节。

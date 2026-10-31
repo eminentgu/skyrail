@@ -83,3 +83,16 @@
 - Markdown 与工具活动卡已在 Safari 查看；修复旧样式把消息头渲染成独立大气泡的问题。外部 Markdown 图片默认不加载，不启用原始 HTML。
 
 工具目录中可能仍列出宿主 MCP，未宣称运行时已严格隐藏所有替代工具；当前路由由显式技能、开发者指令及本次真实模型测试验证。
+
+## 2026-11-01：触屏、远程入口和维护基础
+
+- 25 项 Node 测试通过，包括新增的触屏 tap / scroll / drag 分离和网关认证回归；TypeScript / Vite 构建通过。
+- Swift typecheck 通过；现有 `fullPath(forApplication:)` 有弃用警告。本轮未覆盖原生签名，以保留用户刚完成的授权。
+- Chrome 390×844 页面检查：单栏工作区、权限区和 44px 按钮可见。独立本地测试页面加载真实 `InteractiveImage`，用 CDP touchStart / touchMove / touchEnd 输入，观察到轻点 down/up、滑动 scroll、显式拖拽 down/move/up；轻点不聚焦键盘，键盘按钮显示 Tab / 回车 / 退格。这是浏览器模拟，非手机真机或 Mac 写操作验收。
+- 真实远程域名登录成功；登录回归保留 Host / Origin 限制，验证未登录 API 401、正确密码 303、Cookie 认证代理成功、错误 Origin 403、错误密码 401。
+- 两项 macOS 权限重新检测均为 true。发现旧 wrapper 退出后残留 Node 占端口，已清理；新增 managed service 检查 wrapper 存活并退出。安装脚本迁移时只终止当前 checkout + Node 路径匹配的旧服务。
+- 当前仍复现 ScreenCaptureKit `Failed to start stream due to audio/video capture failure`。replayd 日志显示 TCC Allow，随后 `Error in creating screenshot`；因此不能再把它简单归因于缺少权限，也不能宣称原生全屏点击修复通过。需要继续单独定位采集恢复与跨 Space 行为。
+- iOS Safari、Android Chrome 真机、软键盘 / 中文 IME、真实应用滚动与拖拽尚未验收。
+- MIT、贡献 / 支持 / 安全说明、Issue / PR 模板、GitHub CI 和 Dependabot 配置加入；CI 结果以推送后的 Actions 为准。安全模式扫描无命中，不能替代完整安全审计。
+- 常驻进程强制重启复验：`launchctl kickstart -k` 后在约 6 秒内恢复到 Node 的父进程为原生 wrapper；两项权限仍为 true，未再连接残留孤儿进程。
+- 未完成的验收已公开跟踪：[原生采集与全屏](https://github.com/eminentgu/skyrail/issues/1)、[手机真机矩阵](https://github.com/eminentgu/skyrail/issues/2)。

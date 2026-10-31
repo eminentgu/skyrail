@@ -41,3 +41,15 @@
 - [x] 聊天内请求打开应用、真实授权卡与分层错误信息。
 - [x] 本次窗口连接允许全部操作，断开/换窗后撤销。
 - [x] Markdown 对话、工具活动、指南和可恢复删除入口。
+
+## 2026-11-01：触屏与开源维护
+
+- [x] 触屏轻点 / 滚动手势与显式拖拽模式，独立键盘入口。
+- [x] 小屏、横屏、44px 触控与安全区域处理。
+- [x] 远程认证网关与登录 Origin 修复；常驻安装脚本与孤儿服务清理。
+- [x] MIT、贡献 / 支持 / 安全说明、Issue / PR 模板、CI 与 Dependabot。
+- [ ] iOS Safari / Android Chrome 真机输入与 IME 矩阵。
+- [ ] 原生全屏、多 Space、右键 / 拖拽逐应用验收。
+- [ ] 稳定签名、公证、静态生产服务与断连恢复。
+
+公开待办：[采集恢复与原生全屏 #1](https://github.com/eminentgu/skyrail/issues/1) · [手机真机验收 #2](https://github.com/eminentgu/skyrail/issues/2)。
