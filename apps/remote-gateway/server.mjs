@@ -3,6 +3,7 @@ import {randomBytes,createHash,createHmac,timingSafeEqual} from 'node:crypto';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {rejectUpgrade} from '../../packages/macos/desktop.mjs';
+import {loginPage} from './login.mjs';
 const root=path.resolve(import.meta.dirname,'../..');const dataRoot=process.env.SKYRAIL_GATEWAY_DATA||path.join(root,'.data');await mkdir(dataRoot,{recursive:true});
 const publicHost=process.env.SKYRAIL_REMOTE_HOST;
 if(!publicHost||!/^[a-z0-9.-]+$/i.test(publicHost))throw Error('Set SKYRAIL_REMOTE_HOST to your HTTPS hostname, without scheme or port');
@@ -12,7 +13,7 @@ try{password=(await readFile(credentialFile,'utf8')).trim()}catch(e){if(e.code!=
 const key=randomBytes(32);const digest=v=>createHash('sha256').update(v).digest();const same=(a,b)=>timingSafeEqual(digest(a),digest(b));
 const sign=value=>createHmac('sha256',key).update(value).digest('base64url');
 function authenticated(req){const value=req.headers.cookie?.split('; ').find(c=>c.startsWith('__Host-skyrail_access='))?.split('=').slice(1).join('=');if(!value)return false;const [time,signature]=value.split('.');return Number(time)>Date.now()&&!!signature&&same(signature,sign(time))}
-const html=`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>登录 Skyrail</title><style>body{font:16px -apple-system,BlinkMacSystemFont,sans-serif;color:#233a4b;background:linear-gradient(140deg,#afc9dd,#f0dfcc);min-height:95vh;display:grid;place-items:center;margin:0}main{background:#ffffffdf;border-radius:24px;padding:36px;width:min(340px,75vw)}h1{font-size:28px;font-weight:500}p{font-size:14px;line-height:1.7;color:#506779}label{display:block;font-size:13px;margin-bottom:8px}input,button{box-sizing:border-box;width:100%;font:inherit;padding:13px;border:1px solid #a1b5bf;border-radius:10px}button{margin-top:16px;background:#344f65;color:white;border:0;cursor:pointer}small{display:block;margin-top:18px;color:#506779;font-size:11px;line-height:1.7}</style><main><h1>Skyrail</h1><p>登录后访问你的 Mac 工作台。</p><form action="/_access/login" method="post"><label for="password">远程访问密码</label><input id="password" name="password" type="password" autocomplete="current-password" required autofocus><button>登录</button></form><small>密码保存在运行 Skyrail 的 Mac 上，位于项目 .data/remote-access.txt。</small></main></html>`;
+const html=loginPage;
 const attempts=new Map();
 const server=http.createServer(async(req,res)=>{
  const host=req.headers.host;if(host!==publicHost&&host!==`127.0.0.1:${port}`){res.writeHead(403);return res.end('Invalid host')}

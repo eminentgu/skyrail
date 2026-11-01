@@ -1,5 +1,14 @@
 # 原生 Mac 架构
 
+## 当前人工控制路径
+
+2026-11-01：人工控制优先使用系统屏幕共享，浏览器 noVNC → 已认证的固定路径 WebSocket → loopback TCP 5900。该通道展示整个 Mac，不绑定某个应用窗口，因此新应用 / 弹窗无需另选窗口。人工图像与输入不进入模型或聊天存储，系统密码由用户本人输入。
+
+开始人工控制前撤销模型窗口连接与审批，通道独占且有期限。浏览 Codex 对话不会卸载桌面组件；发送任务先关闭人工连接，再允许模型申请应用控制。模型的 `skyrail_computer` 仍使用独立的所选应用 / AX 通道，不能把人工 VNC 控制能力当作模型已有权限。旧窗口人工点击曾返回成功但应用没有响应，不再作为人工主路径。
+
+常驻服务从 `dist/` 提供静态构建，无开发热更新注入；`npm run dev` 保留 Vite。HTML 不缓存、哈希资产缓存，静态服务拒绝越界路径和指向构建目录外的符号链接。网关仍只向登录用户转发 API 与专用 WebSocket。
+
+
 React UI → 本地同源 HTTP/SSE 协调器 → Codex app-server stdio。Codex 动态工具请求 `item/tool/call` 由协调器处理：校验线程与控制状态 → 修改操作的用户审批 → 串行输入闸门 → Swift 辅助程序 → macOS Accessibility / ScreenCaptureKit → 文字与窗口截图返回 Codex 和界面。
 
 用户选择一个已运行应用，辅助程序只捕获该应用的一扇窗口并通过 bundle ID 绑定输入。人工接管既可在本机直接操作，也可通过画面指针/键盘输入。画面排除 object-fit 留白后映射到窗口归一化坐标；服务端重验 thread、epoch 与 humanClientId，再串行转给 Swift，输入目标由服务端绑定的 app/windowId 决定。断开、交接与失焦会释放键鼠。模型观察仍按需截图；界面观看使用独立 SCStream 进程持续采集，JPEG 编码后经长度分帧管道进入 Node，再由独立 MJPEG HTTP 连接呈现。观看不会重建 AX 树或改变模型元素编号。帧不进入聊天 SSE；SSE 每秒只更新流状态和指标。慢客户端丢弃新到帧以限制缓冲，不排长视频队列；无订阅者时释放采集进程。窗口 ID 固定在绑定时，重连不暗换窗口。
@@ -16,7 +25,7 @@ React UI → 本地同源 HTTP/SSE 协调器 → Codex app-server stdio。Codex 
 
 Codex 持有自身凭据和线程；产品 JSON 文件保存线程映射和消息。截图在服务内存中，不写产品数据库；模型工具结果仍进入 Codex 记录。native app 只使用本机临时签名，重编译可能使权限失效。
 
-目前 epoch 只约束 Skyrail 路径，不控制其他桌面客户端或用户物理输入；没有多客户端租约和系统级自动化隔离。主机 shell / 用户已有 MCP 的防绕过仍依赖 runtime 约束和开发者指令，尚不是强制白名单产品。没有承诺生产级安全接管。
+epoch 与独占人工桌面租约只约束 Skyrail 路径，不控制其他桌面客户端或用户物理输入，也不提供系统级自动化隔离。主机 shell / 用户已有 MCP 的防绕过仍依赖 runtime 约束和开发者指令，尚不是强制白名单产品。没有承诺生产级安全接管。
 
 参考：官方 app-server https://learn.chatgpt.com/docs/app-server 和 Computer Use https://learn.chatgpt.com/docs/computer-use 。本机生成的 schema 验证了 dynamicTools、item/tool/call 与 inputImage 输出结构。
 
@@ -24,7 +33,7 @@ Codex 持有自身凭据和线程；产品 JSON 文件保存线程映射和消�
 
 旧对话未注册 dynamicTools，原执行记录实际出现 cua_repl 工具失败。v2 使用唯一工具名 skyrail_computer，并显式注入项目 skill；启动参数仅作用于 Skyrail 子进程，不改用户全局配置。mcpServerStatus 仍可能列出宿主提供的工具，因此这不是严格工具白名单隔离；真实模型路由测试和应用确认构成当前验证边界。
 
-旧 product thread 的 codexThreadId 版本不符时，新建运行时并归档 previousCodexIds；本地消息不删除，最近三十条正文以历史数据输入新线程，不能把旧失败声明当作当前权限事实。原生权限继续由 macOS 强制执行。
+当前工具版本升级会恢复同一原生 Codex session ID，不再因版本变化新建会话。原生历史分页读取、跨客户端写入占用与独立 writer 释放见会话同步实现；历史上的 previousCodexIds 仅用于读取旧记录。原生权限继续由 macOS 强制执行。
 
 默认逐次确认；allow_session 由聊天授权卡或电脑面板显式设置，绑定随机 sessionId，不持久化到磁盘。重新绑定窗口、断开或重启服务恢复 ask。聊天删除为可恢复的 deletedAt 标记，默认快照不返回被删除的正文，“最近删除”只返回标题及恢复入口。
 

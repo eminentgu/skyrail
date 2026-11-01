@@ -2,6 +2,8 @@ import http from 'node:http';
 import {randomUUID,randomBytes} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
+import {userInfo} from 'node:os';
+import {createClientHandler} from './client.mjs';
 import {createServer as createViteServer} from 'vite';
 import {Codex} from '../../packages/codex/index.mjs';
 import {SessionWriters} from '../../packages/codex/writers.mjs';
@@ -55,7 +57,7 @@ desktop.on('change',()=>publish());
 mac.externalControl=()=>desktop.active;
 mac.on('change',()=>publish());
 const serviceId=randomUUID();
-const snapshot=()=>({service:{id:serviceId,protocol:6},desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
+const snapshot=()=>({service:{id:serviceId,protocol:7},desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
 function publish(){syncPower();const data='data: '+JSON.stringify(snapshot())+'\n\n';for(const c of clients)c.write(data)}
 codex.on('offline',()=>{runtime='disconnected';publish()});
 function handleNotification({method,params:p}){
@@ -113,12 +115,14 @@ codex.toolHandler=async p=>{
  }catch(e){const reason=openedApp?'应用 '+openedApp+' 已打开，但画面连接未完成：'+e.message:e.message;activity.status='failed';activity.error=reason;await save();publish();return {success:false,contentItems:[{type:'inputText',text:reason}]}}
 };
 const token=randomBytes(32).toString('hex');const port=Number(process.env.PORT||4317);const host=`127.0.0.1:${port}`;
-const vite=await createViteServer({server:{middlewareMode:true},appType:'spa'});
+const production=process.env.SKYRAIL_MANAGED_SERVICE==='1'||process.env.SKYRAIL_SERVE_DIST==='1';
+const vite=production?null:await createViteServer({server:{middlewareMode:true},appType:'spa'});
+const clientHandler=production?await createClientHandler(path.join(root,'dist')):(req,res)=>vite.middlewares(req,res);
 const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(value))};
 const server=http.createServer(async(req,res)=>{
  if(req.headers.host!==host){res.writeHead(403);return res.end('Invalid host')}
  const url=new URL(req.url,`http://${host}`);
- if(!url.pathname.startsWith('/v1/'))return vite.middlewares(req,res);
+ if(!url.pathname.startsWith('/v1/'))return clientHandler(req,res);
  res.setHeader('Cache-Control','no-store');
  if(req.headers.origin && req.headers.origin!==`http://${host}`)return json(res,403,{message:'来源不受支持'});
  if(url.pathname==='/v1/bootstrap' && req.method==='GET'){res.setHeader('Set-Cookie',`skyrail=${token}; HttpOnly; SameSite=Strict; Path=/v1`);return json(res,200,{token,...snapshot()})}
@@ -135,7 +139,7 @@ const server=http.createServer(async(req,res)=>{
  if(req.method!=='POST'||req.headers['x-skyrail-token']!==token)return json(res,403,{message:'会话校验失败'});
  try{
  let raw='';for await(const c of req){raw+=c;if(raw.length>64000)throw Object.assign(new Error('消息过长'),{status:413})}const body=JSON.parse(raw||'{}');
- if(url.pathname==='/v1/desktop/status')return json(res,200,{...await probeDesktop(),...desktop.status()});
+ if(url.pathname==='/v1/desktop/status')return json(res,200,{...await probeDesktop(),...desktop.status(),username:userInfo().username});
  if(url.pathname==='/v1/desktop/start')return json(res,200,await desktop.start(body.clientId));
  if(url.pathname==='/v1/desktop/renew')return json(res,200,desktop.renew(body.clientId,body.ticket));
  if(url.pathname==='/v1/desktop/stop'){desktop.stop(body.clientId,body.ticket);return json(res,200,{ok:true})}
@@ -230,7 +234,7 @@ const server=http.createServer(async(req,res)=>{
  }
  }catch(e){json(res,e.status||500,{message:e.message})}
 });
-server.on('upgrade',(req,socket,head)=>{if(new URL(req.url,`http://${host}`).pathname==='/v1/desktop/socket')desktop.upgrade(req,socket,head,{host,token});else if(!req.headers['sec-websocket-protocol']?.includes('vite-hmr'))rejectUpgrade(socket)});
+server.on('upgrade',(req,socket,head)=>{if(new URL(req.url,`http://${host}`).pathname==='/v1/desktop/socket')desktop.upgrade(req,socket,head,{host,token});else if(production||!req.headers['sec-websocket-protocol']?.includes('vite-hmr'))rejectUpgrade(socket)});
 let checkingLock=false;
 const lockTimer=setInterval(async()=>{
  if(checkingLock||!clients.size)return;checkingLock=true;
@@ -247,7 +251,7 @@ const lockTimer=setInterval(async()=>{
 },2000);lockTimer.unref();
 server.listen(port,'127.0.0.1',()=>console.log(`Skyrail ready: http://${host}`));
 let closing=false;
-async function close(){if(closing)return;closing=true;clearInterval(lockTimer);desktop.close();power.close();stream.stop();await mac.close();await writers.close();codex.close();historyCodex.close();for(const c of clients)c.end();await vite.close();server.close();process.exit(0)}
+async function close(){if(closing)return;closing=true;clearInterval(lockTimer);desktop.close();power.close();stream.stop();await mac.close();await writers.close();codex.close();historyCodex.close();for(const c of clients)c.end();await vite?.close();server.close();process.exit(0)}
 process.on('SIGINT',close);process.on('SIGTERM',close);
 // launchctl can terminate the native wrapper before its Node child. Do not leave
 // an orphan holding the port and the previous macOS permission attribution.

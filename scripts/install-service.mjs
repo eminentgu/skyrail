@@ -6,6 +6,7 @@ const root=path.resolve(import.meta.dirname,'..');
 const helper=path.join(root,'.data/Skyrail Mac.app/Contents/MacOS/SkyrailMac');
 if(!process.env.SKYRAIL_REMOTE_HOST||!/^[a-z0-9.-]+$/i.test(process.env.SKYRAIL_REMOTE_HOST))throw Error('Set SKYRAIL_REMOTE_HOST to your HTTPS hostname');
 await access(helper);
+try{await access(path.join(root,'dist/index.html'))}catch{throw Error('请先运行 npm run build，再安装常驻服务')}
 const directory=path.join(os.homedir(),'Library/LaunchAgents');
 await mkdir(directory,{recursive:true});
 const escape=value=>String(value).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
