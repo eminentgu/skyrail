@@ -29,7 +29,7 @@ export function SessionDrawer({
   onImport,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [tab, setTab] = useState("local"),
+  const [tab, setTab] = useState("native"),
     [search, setSearch] = useState("");
   useEffect(() => {
     ref.current?.showModal();
@@ -54,7 +54,7 @@ export function SessionDrawer({
         <div className="drawer-heading">
           <div>
             <span className="eyebrow">YOUR WORKSPACE</span>
-            <h2>每个想法，都能接续。</h2>
+            <h2>你的对话</h2>
           </div>
           <button
             className="icon-button"
@@ -70,8 +70,8 @@ export function SessionDrawer({
         </button>
         <div className="history-tabs" role="tablist" aria-label="会话来源">
           {[
-            ["local", "Skyrail"],
-            ["native", "Codex"],
+            ["local", "最近对话"],
+            ["native", "Codex 项目"],
             ["trash", "最近删除"],
           ].map(([id, label]) => (
             <button

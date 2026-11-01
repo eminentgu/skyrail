@@ -41,7 +41,9 @@ function App() {
     [text, setText] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [panel, open] = useState(true),
+    [panel, open] = useState(
+      () => localStorage.getItem("skyrail.page") === "computer",
+    ),
     [history, showHistory] = useState(false),
     [full, setFull] = useState(false),
     [dark, setDark] = useState(
@@ -50,7 +52,6 @@ function App() {
     [guide, showGuide] = useState(false),
     [deletedId, setDeletedId] = useState(""),
     [copied, setCopied] = useState(false);
-  const autoOpened = React.useRef("");
   const stopDesktop = React.useRef<() => Promise<void>>(async () => {});
   const [applicationTools, setApplicationTools] = useState(0);
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
@@ -177,14 +178,8 @@ function App() {
     if (el && follows.current) el.scrollTop = el.scrollHeight;
   }, [thread?.messages.map((m) => m.text).join(""), selected]);
   useEffect(() => {
-    if (state.lease.app && state.lease.threadId === selected) {
-      const binding = selected + state.lease.app;
-      if (autoOpened.current !== binding) {
-        autoOpened.current = binding;
-        open(true);
-      }
-    }
-  }, [state.lease.app, state.lease.threadId, selected]);
+    localStorage.setItem("skyrail.page", panel ? "computer" : "chat");
+  }, [panel]);
   async function post(path: string, data: object = {}) {
     const r = await fetch("/v1/" + path, {
       method: "POST",
@@ -305,10 +300,10 @@ function App() {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            open(true);
+            open(false);
             setFull(false);
           }}
-          aria-label="Skyrail 返回电脑"
+          aria-label="Skyrail 返回对话"
         >
           <BrandMark />
           <span>
@@ -316,10 +311,6 @@ function App() {
           </span>
         </a>
         <nav className="desktop-switch" aria-label="工作区">
-          <button aria-pressed={panel} onClick={() => open(true)}>
-            <Icon name="monitor" size={18} />
-            电脑
-          </button>
           <button
             aria-pressed={!panel}
             onClick={() => {
@@ -328,20 +319,14 @@ function App() {
             }}
           >
             <Icon name="chat" size={18} />
-            Codex
+            对话
+          </button>
+          <button aria-pressed={panel} onClick={() => open(true)}>
+            <Icon name="monitor" size={18} />
+            电脑
           </button>
         </nav>
         <div className="header-actions">
-          {panel && (
-            <button
-              className="icon-button"
-              aria-label="Codex 应用连接设置"
-              title="Codex 应用连接设置"
-              onClick={() => setApplicationTools((n) => n + 1)}
-            >
-              <Icon name="settings" size={18} />
-            </button>
-          )}
           <button
             className="icon-button theme-toggle"
             onClick={() => setDark(!dark)}
@@ -349,29 +334,6 @@ function App() {
             title="切换主题"
           >
             <Icon name={dark ? "sun" : "moon"} />
-          </button>
-          <button
-            className="history-trigger"
-            onClick={() => showHistory(true)}
-            aria-label="会话管理"
-          >
-            <Icon name="history" />
-            <span>会话</span>
-          </button>
-          <button
-            className="header-new"
-            disabled={busy || !token}
-            onClick={() =>
-              act(async () => {
-                await create();
-                open(false);
-                setFull(false);
-              })
-            }
-            aria-label="新对话"
-          >
-            <Icon name="plus" size={18} />
-            <span>新对话</span>
           </button>
         </div>
       </header>
@@ -448,12 +410,13 @@ function App() {
                 {runtimeLabel}
               </span>
               <button
-                className="icon-button guide-trigger"
-                onClick={() => showGuide(!guide)}
-                aria-expanded={guide}
-                aria-label="电脑操作指南"
+                className="manage-conversations"
+                onClick={() => showHistory(true)}
+                aria-label="管理对话"
+                aria-expanded={history}
               >
-                <Icon name="settings" size={18} />
+                <Icon name="history" size={18} />
+                <span>管理对话</span>
               </button>
             </div>
           </div>
@@ -540,6 +503,15 @@ function App() {
                 >
                   查看电脑
                 </button>
+                <button
+                  onClick={() => {
+                    setApplicationTools((n) => n + 1);
+                    open(true);
+                    showGuide(false);
+                  }}
+                >
+                  应用工具设置
+                </button>
               </div>
             </div>
           )}
@@ -561,9 +533,9 @@ function App() {
                 </span>
                 <p className="eyebrow">从想法，到行动</p>
                 <h2>
-                  聊一聊，
+                  从一句话开始，
                   <br />
-                  也动手做一做。
+                  一起把事情做好。
                 </h2>
                 <p className="welcome-description">
                   接着上次的思路，或开始一件新鲜事。
@@ -674,7 +646,7 @@ function App() {
                 onChange={(e) => setText(e.target.value)}
                 placeholder={
                   state.desktop?.active
-                    ? "输入任务，发送时交还电脑给 Codex"
+                    ? "发送任务时交给 Codex，桌面保持连接"
                     : "说说你想做什么…"
                 }
                 aria-label="消息"
@@ -700,6 +672,14 @@ function App() {
                   />
                   Codex <span className="composer-separator">/</span> 本机 Mac
                 </span>
+                <button
+                  className="composer-guide"
+                  type="button"
+                  onClick={() => showGuide(!guide)}
+                  aria-label="电脑操作设置"
+                >
+                  <Icon name="settings" size={16} />
+                </button>
                 <span className="keyboard-shortcut">↵ 发送</span>
                 {syncing ? (
                   <button type="button" disabled>
@@ -780,17 +760,7 @@ function App() {
       </main>
       <nav className="mobile-nav" aria-label="手机导航">
         <button
-          aria-current={panel && !history ? "page" : undefined}
-          onClick={() => {
-            showHistory(false);
-            open(true);
-          }}
-        >
-          <Icon name="monitor" />
-          电脑
-        </button>
-        <button
-          aria-current={!panel && !history ? "page" : undefined}
+          aria-current={!panel ? "page" : undefined}
           onClick={() => {
             showHistory(false);
             open(false);
@@ -801,14 +771,17 @@ function App() {
             <Icon name="chat" />
             {approvalCount > 0 && <i>{approvalCount}</i>}
           </span>
-          Codex
+          对话
         </button>
         <button
-          aria-current={history ? "page" : undefined}
-          onClick={() => showHistory(true)}
+          aria-current={panel ? "page" : undefined}
+          onClick={() => {
+            showHistory(false);
+            open(true);
+          }}
         >
-          <Icon name="history" />
-          会话
+          <Icon name="monitor" />
+          电脑
         </button>
       </nav>
     </div>

@@ -30,7 +30,9 @@ export function RemoteDesktop({
     [keyboard, setKeyboard] = useState(false),
     [fit, setFit] = useState(true),
     [pan, setPan] = useState(false),
-    [account, setAccount] = useState("");
+    [account, setAccount] = useState(""),
+    [controller, setController] = useState<"human" | "view">("human"),
+    [switching, setSwitching] = useState(false);
   const screen = useRef<HTMLDivElement>(null),
     surface = useRef<HTMLDialogElement>(null),
     user = useRef<HTMLInputElement>(null),
@@ -119,7 +121,7 @@ export function RemoteDesktop({
     try {
       const status = await postRef.current("desktop/status");
       setAvailable(status.available);
-      setActive(status.active);
+      setActive(status.connected || status.active);
       setAccount(status.username || "");
     } catch (e) {
       setAvailable(false);
@@ -132,7 +134,10 @@ export function RemoteDesktop({
     setCredentialTypes([]);
     const attempt = ++generation.current;
     try {
-      const s: Session = await postRef.current("desktop/start", { clientId });
+      const s: Session = await postRef.current("desktop/start", {
+        clientId,
+        replace: active,
+      });
       if (attempt !== generation.current) {
         void postRef
           .current("desktop/stop", { clientId, ticket: s.ticket })
@@ -175,6 +180,8 @@ export function RemoteDesktop({
         setStage("live");
         setFit(true);
         setPan(false);
+        client.viewOnly = false;
+        setController("human");
         client.focus();
       });
       client.addEventListener("securityfailure", () => {
@@ -197,6 +204,41 @@ export function RemoteDesktop({
       }
     }
   }
+  async function setControl(mode: "view" | "human") {
+    const current = session.current;
+    if (!current || stage !== "live") throw Error("请先连接电脑");
+    setSwitching(true);
+    setError("");
+    rfb.current?.blur();
+    if (rfb.current) rfb.current.viewOnly = true;
+    setKeyboard(false);
+    if (typing.current) typing.current.value = "";
+    try {
+      await postRef.current("desktop/control", {
+        clientId,
+        ticket: current.ticket,
+        mode,
+      });
+      setController(mode);
+      if (rfb.current) rfb.current.viewOnly = mode === "view";
+    } catch (e) {
+      setError((e as Error).message);
+      throw e;
+    } finally {
+      setSwitching(false);
+    }
+  }
+  async function handoff() {
+    if (stage === "live") {
+      if (controller !== "view") await setControl("view");
+      return;
+    }
+    if (session.current) {
+      disconnect();
+      setStage("setup");
+      await termination.current;
+    }
+  }
   async function close() {
     disconnect();
     if (!embedded) setOpen(false);
@@ -207,18 +249,19 @@ export function RemoteDesktop({
     await termination.current;
     onCloseRef.current();
   }
-  closeRef.current = close;
+  closeRef.current = handoff;
   function sendText(input: HTMLInputElement) {
     const value = input.value;
     input.value = "";
-    if (stage !== "live") return;
+    if (stage !== "live" || controller !== "human" || switching) return;
     for (const character of value) {
       const code = character.codePointAt(0)!;
       rfb.current?.sendKey(code <= 255 ? code : 0x01000000 | code);
     }
   }
   function key(symbol: number, code: string) {
-    rfb.current?.sendKey(symbol, code);
+    if (controller === "human" && !switching)
+      rfb.current?.sendKey(symbol, code);
   }
   const content = (
     <>
@@ -228,7 +271,9 @@ export function RemoteDesktop({
           <strong>我的 Mac</strong>
           <span role="status">
             {stage === "live"
-              ? "已连接 · 由你操作"
+              ? controller === "human"
+                ? "已连接 · 可点按操作"
+                : "已连接 · 只看画面"
               : stage === "credentials"
                 ? "验证 Mac 账户"
                 : stage === "connecting"
@@ -250,9 +295,15 @@ export function RemoteDesktop({
             <Icon name="expand" size={18} />
             <span>全屏</span>
           </button>
-          <button onClick={() => void close()}>
-            {stage === "live" ? "结束控制" : "返回 Codex"}
-          </button>
+          <details className="desktop-menu">
+            <summary aria-label="电脑选项">
+              <Icon name="settings" size={18} />
+            </summary>
+            <div>
+              <button onClick={() => void close()}>断开连接</button>
+              <small>切换对话不会断开或锁屏。</small>
+            </div>
+          </details>
         </div>
       </div>
       <p className="desktop-privacy">
@@ -342,17 +393,17 @@ export function RemoteDesktop({
           {available === false && (
             <p>无需启用“任何人请求控制”或单独设置传统 VNC 密码。</p>
           )}
-          {active && <p>已有页面正在使用人工控制台，请先在那个页面断开。</p>}
+          {active && <p>另一页面仍连接着这台 Mac，可直接切换到当前设备。</p>}
           <div className="desktop-actions">
             <button disabled={available === null} onClick={() => void check()}>
               刷新状态
             </button>
             <button
               className="primary"
-              disabled={!available || active}
+              disabled={!available}
               onClick={() => void connect()}
             >
-              连接 Mac
+              {active ? "切换到此设备" : "连接 Mac"}
             </button>
           </div>
         </div>
@@ -367,38 +418,47 @@ export function RemoteDesktop({
           <div className="desktop-touch-primary">
             <span>
               <span className="status-dot" />
-              点按画面操作
+              {controller === "human"
+                ? fit
+                  ? "点按操作"
+                  : "滑动查看"
+                : "只看画面，随时接手"}
             </span>
             <button
-              className="primary"
-              aria-pressed={keyboard}
+              className="desktop-zoom"
+              aria-label={fit ? "放大桌面" : "显示完整桌面"}
               onClick={() => {
-                flushSync(() => setKeyboard(!keyboard));
-                if (!keyboard) typing.current?.focus({ preventScroll: true });
+                setFit(!fit);
+                setPan(fit);
               }}
             >
-              <Icon name="keyboard" size={18} />
-              {keyboard ? "收起键盘" : "输入文字"}
+              <Icon name={fit ? "expand" : "monitor"} size={17} />
+              {fit ? "放大" : "全览"}
             </button>
-            <details className="remote-view-options">
-              <summary aria-label="画面设置">
-                <Icon name="settings" size={18} />
-              </summary>
-              <div>
-                <button onClick={() => setFit(!fit)}>
-                  {fit ? "原尺寸" : "适应屏幕"}
-                </button>
-                <button
-                  disabled={fit}
-                  aria-pressed={pan}
-                  onClick={() => setPan(!pan)}
-                >
-                  {pan ? "停止平移" : "平移画面"}
-                </button>
-              </div>
-            </details>
+            {controller === "view" ? (
+              <button
+                className="primary"
+                disabled={switching}
+                onClick={() => void setControl("human").catch(() => {})}
+              >
+                {switching ? "正在接手…" : "接手操作"}
+              </button>
+            ) : (
+              <button
+                className="primary"
+                disabled={switching}
+                aria-pressed={keyboard}
+                onClick={() => {
+                  flushSync(() => setKeyboard(!keyboard));
+                  if (!keyboard) typing.current?.focus({ preventScroll: true });
+                }}
+              >
+                <Icon name="keyboard" size={18} />
+                {keyboard ? "收起键盘" : "输入文字"}
+              </button>
+            )}
           </div>
-          {keyboard && (
+          {keyboard && controller === "human" && (
             <div className="desktop-keyboard-area">
               <input
                 className="desktop-keyboard"

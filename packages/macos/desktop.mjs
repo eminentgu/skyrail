@@ -2,6 +2,7 @@ import net from 'node:net';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {EventEmitter} from 'node:events';
 import {WebSocketServer,createWebSocketStream} from 'ws';
+import {RFBInputGate} from './rfb-input.mjs';
 
 const fail=(message,status=409)=>Object.assign(Error(message),{status});
 export function rejectUpgrade(socket,status=403){socket.on('error',()=>socket.destroy());if(socket.writable)socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);else socket.destroy()}
@@ -19,18 +20,19 @@ export function probeDesktop({port=5900,timeout=800}={}){
 }
 
 export class DesktopConsole extends EventEmitter{
- constructor({beforeAcquire=async()=>{},port=5900,now=Date.now,pendingMs=30000,idleMs=45000,maxMs=15*60*1000}={}){
+ constructor({beforeAcquire=async()=>{},port=5900,now=Date.now,pendingMs=30000,idleMs=90000,maxMs=24*60*60*1000}={}){
   super();Object.assign(this,{beforeAcquire,port,now,pendingMs,idleMs,maxMs});this.lease=null;
   this.wss=new WebSocketServer({noServer:true,perMessageDeflate:false,maxPayload:65536,handleProtocols:protocols=>protocols.has('binary')?'binary':false});
   this.timer=setInterval(()=>this.sweep(),1000);this.timer.unref();
  }
- get active(){return !!this.lease}
- status(){return {active:this.active,connected:!!this.lease?.ws,expiresAt:this.lease?.absolute||null}}
+ get active(){return !!this.lease&&this.lease.mode!=='view'}
+ get connected(){return !!this.lease?.ws}
+ status(){return {active:this.active,connected:this.connected,control:this.lease?.mode||'none',ready:!!this.lease?.gate?.ready,expiresAt:this.lease?.absolute||null}}
  changed(){this.emit('change')}
- async start(clientId){
+ async start(clientId,{replace=false}={}){
   if(typeof clientId!=='string'||!(/^[a-zA-Z0-9-]{16,80}$/).test(clientId))throw fail('无效客户端',400);
-  if(this.lease)throw fail('人工控制台已被打开，请先在原页面断开');
-  const lease={clientId,ticket:randomBytes(32).toString('hex'),expires:this.now()+this.pendingMs,absolute:this.now()+this.maxMs};
+  if(this.lease){if(!replace)throw fail('人工控制台已被打开，请先在原页面断开');this.release()}
+  const lease={clientId,mode:'human',ticket:randomBytes(32).toString('hex'),expires:this.now()+this.pendingMs,absolute:this.now()+this.maxMs};
   this.lease=lease;this.changed();
   try{
    const status=await probeDesktop({port:this.port});if(!status.available)throw fail(status.message,503);
@@ -42,11 +44,20 @@ export class DesktopConsole extends EventEmitter{
  verify(clientId,ticket){this.sweep();const lease=this.lease;if(!lease||lease.clientId!==clientId||!same(lease.ticket,ticket))throw fail('人工控制台已过期或属于另一页面');return lease}
  renew(clientId,ticket){const lease=this.verify(clientId,ticket);if(!lease.ws)throw fail('画面尚未连接');lease.expires=Math.min(this.now()+this.idleMs,lease.absolute);return {expiresAt:lease.absolute}}
  stop(clientId,ticket){this.verify(clientId,ticket);this.release()}
+ async control(clientId,ticket,mode){
+  if(!['view','human'].includes(mode))throw fail('无效控制模式',400);
+  const lease=this.verify(clientId,ticket);if(!lease.gate?.ready)throw fail('桌面尚未完成认证');if(lease.switching)throw fail('正在交接，请稍候');
+  if(mode===lease.mode)return this.status();
+  if(mode==='view'){lease.gate.park();lease.mode='view';this.changed();return this.status()}
+  lease.switching=true;lease.mode='resuming';this.changed();
+  try{await this.beforeAcquire();if(this.lease!==lease)throw fail('连接已断开');lease.gate.resumeInput();lease.mode='human';return this.status()}
+  catch(e){if(this.lease===lease)lease.mode='view';throw e}finally{lease.switching=false;this.changed()}
+ }
  sweep(){if(this.lease&&(this.now()>=this.lease.expires||this.now()>=this.lease.absolute))this.release()}
  release(){
   const lease=this.lease;if(!lease)return;this.lease=null;
   // Transport teardown, never replay buffered input into a replacement session.
-  lease.tcp?.destroy();lease.duplex?.destroy();lease.ws?.terminate();this.changed();
+  lease.gate?.destroy();lease.tcp?.destroy();lease.duplex?.destroy();lease.ws?.terminate();this.changed();
  }
  upgrade(req,socket,head,{host,token}){
   let url;try{url=new URL(req.url,`http://${host}`)}catch{return rejectUpgrade(socket)}
@@ -65,8 +76,9 @@ export class DesktopConsole extends EventEmitter{
    // Frames and credentials are forwarded only; never decoded, captured or logged.
    ws.on('message',(_data,binary)=>{if(!binary)finish()});
    const duplex=createWebSocketStream(ws);lease.duplex=duplex;
+   const gate=new RFBInputGate();lease.gate=gate;gate.on('error',finish);gate.on('ready',()=>this.changed());tcp.on('data',chunk=>gate.observe(chunk));
    tcp.on('error',finish);tcp.on('close',finish);duplex.on('error',finish);ws.on('error',finish);ws.on('close',finish);
-   tcp.pipe(duplex).pipe(tcp);this.changed();
+   tcp.pipe(duplex).pipe(gate).pipe(tcp);this.changed();
   })}catch{if(this.lease===lease)this.release();socket.destroy()}
   return true;
  }

@@ -4,6 +4,7 @@ import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {userInfo} from 'node:os';
 import {createClientHandler} from './client.mjs';
+import {projectForCwd} from '../../packages/codex/projects.mjs';
 import {createServer as createViteServer} from 'vite';
 import {Codex} from '../../packages/codex/index.mjs';
 import {SessionWriters} from '../../packages/codex/writers.mjs';
@@ -43,7 +44,7 @@ async function syncNative(thread){
 }
 const stream=new MacStream(root);
 const power=new MacPower({onError:()=>console.warn('Skyrail could not prevent system idle sleep')});
-const syncPower=()=>power.setActive(desktop.active||stream.clients.size>0||threads.some(t=>['running','submitting'].includes(t.status)),{display:desktop.active||stream.clients.size>0||!!(mac.state.app&&!mac.state.health?.locked&&threads.some(t=>t.id===mac.state.threadId&&['running','submitting'].includes(t.status)))});
+const syncPower=()=>power.setActive(desktop.connected||desktop.active||stream.clients.size>0||threads.some(t=>['running','submitting'].includes(t.status)),{display:desktop.connected||desktop.active||stream.clients.size>0||!!(mac.state.app&&!mac.state.health?.locked&&threads.some(t=>t.id===mac.state.threadId&&['running','submitting'].includes(t.status)))});
 stream.on('activity',syncPower);
 stream.on('change',()=>publish());
 const mac=new MacBridge(root,{power});const approvals=new Map();
@@ -57,7 +58,7 @@ desktop.on('change',()=>publish());
 mac.externalControl=()=>desktop.active;
 mac.on('change',()=>publish());
 const serviceId=randomUUID();
-const snapshot=()=>({service:{id:serviceId,protocol:7},desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
+const snapshot=()=>({service:{id:serviceId,protocol:8},desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
 function publish(){syncPower();const data='data: '+JSON.stringify(snapshot())+'\n\n';for(const c of clients)c.write(data)}
 codex.on('offline',()=>{runtime='disconnected';publish()});
 function handleNotification({method,params:p}){
@@ -88,8 +89,8 @@ codex.toolHandler=async p=>{
  thread.messages.push(activity);let openedApp=null;await save();publish();
  const finish=async(result)=>{activity.status='completed';await save();publish();return {success:true,contentItems:[{type:'inputText',text:result.text},...(result.image?[{type:'inputImage',imageUrl:result.image}]:[])]}};
  try{
-  if(!['status','list_apps'].includes(args.action)){if(desktop.active)throw Error('人工全桌面控制台正在使用；请等用户断开并重新连接应用后再操作');mac.assertUnlocked();}
-  if(args.action==='status'){const health=await mac.health();return await finish({text:JSON.stringify({backend:'Skyrail native macOS',systemPermissions:health,app:mac.state.app,owner:mac.state.owner,boundToThisThread:mac.state.threadId===thread.id,confirmationMode:mac.state.approvalMode,guidance:health.locked?'Mac 当前已锁屏，需要本人解锁后重新连接':!health.accessibility||!health.screenRecording?'打开电脑面板中的系统权限入口':!mac.state.app?'调用 open_app 请求应用授权并连接窗口':'observe 获取当前窗口；写操作由聊天审批卡确认'})})}
+  if(!['status','list_apps'].includes(args.action)){if(desktop.active)throw Error('电脑正在由用户操作；请等待用户交给 Codex，桌面连接无需断开');mac.assertUnlocked();}
+  if(args.action==='status'){const health=await mac.health();return await finish({text:JSON.stringify({backend:'Skyrail native macOS',systemPermissions:health,app:mac.state.app,owner:mac.state.owner,boundToThisThread:mac.state.threadId===thread.id,confirmationMode:mac.state.approvalMode,guidance:health.locked?'Mac 当前已锁屏，请用户在电脑页接手并手动解锁，桌面连接可保留':!health.accessibility||!health.screenRecording?'打开电脑面板中的系统权限入口':!mac.state.app?'调用 open_app 请求应用授权并连接窗口':'observe 获取当前窗口；写操作由聊天审批卡确认'})})}
   if(args.action==='list_apps')return await finish({text:JSON.stringify(await mac.rpc('apps'))});
   if(args.action==='open_app'){
    if(typeof args.app!=='string'||!args.app.trim())throw Error('请提供要打开的应用名称');
@@ -117,7 +118,7 @@ codex.toolHandler=async p=>{
 const token=randomBytes(32).toString('hex');const port=Number(process.env.PORT||4317);const host=`127.0.0.1:${port}`;
 const production=process.env.SKYRAIL_MANAGED_SERVICE==='1'||process.env.SKYRAIL_SERVE_DIST==='1';
 const vite=production?null:await createViteServer({server:{middlewareMode:true},appType:'spa'});
-const clientHandler=production?await createClientHandler(path.join(root,'dist')):(req,res)=>vite.middlewares(req,res);
+const clientHandler=production?await createClientHandler(path.join(root,'dist'),{snapshotTo:path.join(root,'.data/client-build',serviceId)}):(req,res)=>vite.middlewares(req,res);
 const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(value))};
 const server=http.createServer(async(req,res)=>{
  if(req.headers.host!==host){res.writeHead(403);return res.end('Invalid host')}
@@ -140,15 +141,17 @@ const server=http.createServer(async(req,res)=>{
  try{
  let raw='';for await(const c of req){raw+=c;if(raw.length>64000)throw Object.assign(new Error('消息过长'),{status:413})}const body=JSON.parse(raw||'{}');
  if(url.pathname==='/v1/desktop/status')return json(res,200,{...await probeDesktop(),...desktop.status(),username:userInfo().username});
- if(url.pathname==='/v1/desktop/start')return json(res,200,await desktop.start(body.clientId));
+ if(url.pathname==='/v1/desktop/start')return json(res,200,await desktop.start(body.clientId,{replace:body.replace===true}));
  if(url.pathname==='/v1/desktop/renew')return json(res,200,desktop.renew(body.clientId,body.ticket));
  if(url.pathname==='/v1/desktop/stop'){desktop.stop(body.clientId,body.ticket);return json(res,200,{ok:true})}
- if(desktop.active&&['/v1/mac/bind','/v1/mac/observe','/v1/mac/input','/v1/mac/policy','/v1/control','/v1/mac/disconnect'].includes(url.pathname))return json(res,409,{message:'请先断开人工全桌面控制台，再重新连接应用'});
+ if(url.pathname==='/v1/desktop/control')return json(res,200,await desktop.control(body.clientId,body.ticket,body.mode));
+ if(desktop.active&&['/v1/mac/bind','/v1/mac/observe','/v1/mac/input','/v1/mac/policy','/v1/control','/v1/mac/disconnect'].includes(url.pathname))return json(res,409,{message:'请先将电脑交给 Codex，再连接应用；无需断开桌面'});
  if(url.pathname==='/v1/connect'){await codex.connect();runtime='connected';res.setHeader('Set-Cookie',`skyrail=${token}; HttpOnly; SameSite=Strict; Path=/v1`);publish();for(const t of threads)if(t.codexId&&!t.deletedAt)void syncNative(t).catch(()=>{});return json(res,200,snapshot())}
  if(url.pathname==='/v1/threads'){const t={id:randomUUID(),title:'新对话',messages:[],status:'idle'};threads.unshift(t);await save();publish();return json(res,200,t)}
  if(url.pathname==='/v1/sessions/list'){
-  await historyCodex.connect();const result=await historyCodex.rpc('thread/list',{limit:30,sourceKinds:['cli','vscode','appServer','unknown'],sortKey:'updated_at',...(body.cursor?{cursor:body.cursor}:{}),...(body.search?{searchTerm:String(body.search).slice(0,200)}:{})});
-  return json(res,200,{sessions:result.data.map(t=>({id:t.id,title:t.name||t.preview?.slice(0,80)||'未命名会话',cwd:t.cwd,updatedAt:t.updatedAt,originator:t.originator,linked:threads.some(local=>local.codexId===t.id&&!local.deletedAt)})),nextCursor:result.nextCursor});
+  await historyCodex.connect();const result=await historyCodex.rpc('thread/list',{limit:30,sourceKinds:['cli','vscode','exec','appServer','unknown'],sortKey:'updated_at',...(body.cursor?{cursor:body.cursor}:{}),...(body.search?{searchTerm:String(body.search).slice(0,200)}:{})});
+  const sessions=await Promise.all(result.data.map(async t=>({id:t.id,title:t.name||t.preview?.slice(0,80)||'未命名会话',cwd:t.cwd,project:await projectForCwd(t.cwd),updatedAt:t.updatedAt,originator:t.originator,linked:threads.some(local=>local.codexId===t.id&&!local.deletedAt)})));
+  return json(res,200,{sessions,nextCursor:result.nextCursor});
  }
  if(url.pathname==='/v1/sessions/import'){
   if(typeof body.codexId!=='string'||body.codexId.length>150)throw Error('无效的 Codex 会话编号');

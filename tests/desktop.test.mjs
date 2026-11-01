@@ -50,3 +50,12 @@ test('failed desktop preparation frees reservation and invalid Unicode tickets f
  const f=await fixture(t,{beforeAcquire:async()=>{throw Error('handoff failed')}});await assert.rejects(f.desktop.start(clientId),/handoff failed/);assert.equal(f.desktop.active,false);
  f.desktop.beforeAcquire=async()=>{};await f.desktop.start(clientId);assert.throws(()=>f.desktop.verify(clientId,'密'.repeat(64)),/过期/);assert.equal(f.desktop.active,true);
 });
+
+test('handing control to Codex keeps the desktop connected and resume reacquires ownership',async t=>{
+ const f=await fixture(t);const lease=await f.desktop.start(clientId),ws=f.open(lease.ticket);await once(ws,'open');await assert.rejects(f.desktop.control(clientId,lease.ticket,'view'),/尚未完成认证/);
+ f.desktop.lease.gate.ready=true;await f.desktop.control(clientId,lease.ticket,'view');assert.equal(f.desktop.active,false);assert.equal(f.desktop.connected,true);assert.equal(ws.readyState,WebSocket.OPEN);
+ await f.desktop.control(clientId,lease.ticket,'human');assert.equal(f.acquired,2);assert.equal(f.desktop.active,true);assert.equal(ws.readyState,WebSocket.OPEN);
+});
+test('explicit device switch replaces the old connection without accepting its old ticket',async t=>{
+ const f=await fixture(t);const old=await f.desktop.start(clientId),ws=f.open(old.ticket);await once(ws,'open');const closed=once(ws,'close');const next=await f.desktop.start('new-client-123456789',{replace:true});await closed;assert.notEqual(next.ticket,old.ticket);assert.throws(()=>f.desktop.stop(clientId,old.ticket),/过期/);assert.equal(f.desktop.active,true);
+});

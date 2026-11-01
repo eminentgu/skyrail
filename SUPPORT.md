@@ -1,5 +1,12 @@
 # 支持与故障排查
 
+## 切换或交接后锁屏
+
+对话 / 电脑切页和发送任务现在保留桌面连接；交给 Codex 时仅切为只看画面，回到电脑点“接手操作”恢复人工输入。无需每次断开或重新认证。另一设备占用时可选择“切换到此设备”。
+
+macOS 屏幕共享还可能在真正断开连接后恢复原先的锁屏状态。若希望关闭这项行为，在本机终端执行 `sh scripts/keep-remote-session.sh`，由本人输入管理员密码；该设置需要一次系统授权。脚本仅将 `/Library/Preferences/com.apple.RemoteManagement.plist` 的 `RestoreMachineState` 改为 false，正常手动锁屏、登录密码与空闲锁屏策略独立保留。恢复此行为可用管理员权限将该键设为 true。依据：[Screens 官方说明](https://help.edovia.com/en/screens-5/troubleshooting/log-in-twice-mac/)。
+
+
 ## 手机点了没有反应 / 新弹窗点不到
 
 当前首页使用“连接 Mac”的系统级整桌面通道，直接点按，需输入时点击“输入文字”。本机用户名由服务自动预填；系统登录使用 Mac 密码，网页入口使用 Skyrail 访问密码，两者不同。

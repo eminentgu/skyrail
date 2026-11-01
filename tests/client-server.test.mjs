@@ -9,3 +9,7 @@ test('production client serves build assets without dev injection and rejects tr
  assert.equal((await fetch(base+'/',{method:'POST'})).status,405);const head=await fetch(base+'/',{method:'HEAD'});assert.equal(head.status,200);assert.equal(await head.text(),'');
 });
 test('managed client fails explicitly when the build is missing',async()=>{await assert.rejects(createClientHandler('/nonexistent-skyrail-build'))});
+test('running releases remain consistent while a new client is built',async t=>{
+ const temporary=await mkdtemp(path.join(os.tmpdir(),'skyrail-release-'));const root=path.join(temporary,'dist');await mkdir(root);await writeFile(path.join(root,'index.html'),'old release');const handler=await createClientHandler(root,{snapshotTo:path.join(temporary,'release')});await writeFile(path.join(root,'index.html'),'new release');
+ const server=http.createServer(handler);await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(async()=>{server.closeAllConnections();await new Promise(r=>server.close(r));await rm(temporary,{recursive:true,force:true})});assert.equal(await(await fetch(`http://127.0.0.1:${server.address().port}`)).text(),'old release');
+});
