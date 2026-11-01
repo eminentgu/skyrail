@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { InteractiveImage } from "./InteractiveImage";
 import { RemoteDesktop } from "./RemoteDesktop";
 import { Icon } from "./Icon";
@@ -77,9 +77,35 @@ export function MacWorkspace({
   applicationTools = 0,
   onStopReady,
 }: Props) {
-  const [view, setView] = useState("desktop");
+  const [view, setView] = useState(() =>
+    localStorage.getItem("skyrail.scope") === "app" ? "app" : "desktop",
+  );
+  const desktopHandoff = useRef<() => Promise<void>>(async () => {});
+  async function chooseView(next: string) {
+    await action("scope", async () => {
+      await desktopHandoff.current();
+      if (
+        lease.owner === "human" &&
+        lease.app &&
+        lease.humanClientId === clientId
+      )
+        onSnapshot(
+          await post("control", {
+            threadId: selected,
+            expectedEpoch: lease.epoch,
+            owner: "none",
+            clientId,
+          }),
+        );
+      setView(next);
+      localStorage.setItem("skyrail.scope", next);
+    });
+  }
   useEffect(() => {
-    if (applicationTools) setView("app");
+    onStopReady?.(() => desktopHandoff.current());
+  }, [onStopReady]);
+  useEffect(() => {
+    if (applicationTools) void chooseView("app");
   }, [applicationTools]);
   const [apps, setApps] = useState<{ id: string; name: string }[]>([]),
     [choice, setChoice] = useState(lease.app || ""),
@@ -187,24 +213,29 @@ export function MacWorkspace({
     );
   }
   const source =
-    belongs && visible
+    belongs && visible && workspaceVisible && view === "app"
       ? `/v1/mac/stream?threadId=${encodeURIComponent(selected)}&app=${encodeURIComponent(lease.app!)}&retry=${retry}`
       : undefined;
-  const label = !belongs
-    ? "未连接"
-    : lease.transitioning
-      ? "正在交接…"
-      : lease.owner === "agent"
-        ? running
-          ? "Codex 正在执行任务"
-          : "已交给 Codex"
-        : lease.owner === "human"
-          ? lease.humanClientId === clientId
-            ? "由你操作 Mac"
-            : "另一页面已接管"
-          : "操作已暂停";
   return (
     <>
+      <div className="computer-mode-bar" role="group" aria-label="电脑共享范围">
+        <button
+          aria-pressed={view === "desktop"}
+          disabled={!!pending}
+          onClick={() => void chooseView("desktop")}
+        >
+          <Icon name="monitor" size={17} />
+          整个桌面
+        </button>
+        <button
+          aria-pressed={view === "app"}
+          disabled={!!pending}
+          onClick={() => void chooseView("app")}
+        >
+          <Icon name="monitor" size={17} />
+          单个 App
+        </button>
+      </div>
       <section
         className="computer desktop-primary"
         style={{ display: view === "desktop" ? "flex" : "none" }}
@@ -217,18 +248,13 @@ export function MacWorkspace({
           clientId={clientId}
           locked={health?.locked}
           onClose={collapse}
-          onStopReady={onStopReady}
+          onStopReady={(fn) => {
+            desktopHandoff.current = fn;
+          }}
         />
       </section>
       {view === "app" && (
         <section className="computer" aria-label="Codex 应用连接设置">
-          <div className="app-tools-back">
-            <button onClick={() => setView("desktop")}>
-              <Icon name="back" size={17} />
-              返回整台 Mac
-            </button>
-            <span>Codex 应用工具</span>
-          </div>
           <div className="workspace-top">
             <div className="workspace-title">
               <span className={"stream-dot " + (live ? "live" : "")} />
@@ -253,22 +279,16 @@ export function MacWorkspace({
               >
                 <Icon name="settings" size={18} />
               </button>
-              <button
-                className="icon-button"
-                onClick={() => setFull(!full)}
-                aria-label={full ? "返回分栏" : "放大电脑"}
-                title={full ? "返回分栏" : "放大电脑"}
-              >
-                <Icon name="expand" size={18} />
-              </button>
-              <button
-                className="icon-button"
-                onClick={collapse}
-                aria-label="返回对话"
-                title="返回对话"
-              >
-                <Icon name="close" size={18} />
-              </button>
+              {belongs &&
+                lease.owner === "human" &&
+                lease.humanClientId === clientId && (
+                  <button
+                    disabled={!!pending}
+                    onClick={() => void control("agent")}
+                  >
+                    交给 Codex
+                  </button>
+                )}
               {lease.app && (
                 <button
                   disabled={pending === "disconnect"}
@@ -416,13 +436,21 @@ export function MacWorkspace({
                 <InteractiveImage
                   src={source}
                   name={appName}
-                  enabled={false}
+                  enabled={
+                    belongs &&
+                    live &&
+                    workspaceVisible &&
+                    lease.owner === "human" &&
+                    lease.humanClientId === clientId &&
+                    !lease.transitioning
+                  }
                   epoch={lease.epoch}
                   threadId={selected}
                   clientId={clientId}
                   post={post}
                   onError={setError}
-                  takeControl={() => setView("desktop")}
+                  visible={workspaceVisible && view === "app"}
+                  takeControl={() => void control("human")}
                 />
                 {(!live || !visible) && (
                   <div className="stream-overlay">
@@ -479,17 +507,6 @@ export function MacWorkspace({
               </div>
             )}
           </div>
-          <div className="stream-caption">
-            <span>
-              {live ? "● 画面连接正常" : "○ 等待画面"}
-              {live && stream && stream.fps > 0 ? ` · ${stream.fps} 帧/秒` : ""}
-            </span>
-            <span>
-              {lease.owner === "human" && lease.humanClientId === clientId
-                ? "可直接点击与输入"
-                : "接管后可直接操作画面"}
-            </span>
-          </div>
           {approvals
             ?.filter((a) => a.threadId === selected)
             .map((a) => (
@@ -523,7 +540,7 @@ export function MacWorkspace({
                 </div>
               </div>
             ))}
-          {belongs && (
+          {belongs && settings && (
             <div className="confirmation-mode">
               <label htmlFor="operation-mode">操作确认</label>
               <select
@@ -554,48 +571,6 @@ export function MacWorkspace({
               </small>
             </div>
           )}
-          <div className="control">
-            <div>
-              <strong>{label}</strong>
-              <small>
-                {belongs
-                  ? lease.owner === "human" && lease.humanClientId === clientId
-                    ? "可在画面里点击、滚动和输入"
-                    : "接管后才能在画面中输入"
-                  : "电脑与当前对话绑定后才能操作"}
-              </small>
-            </div>
-            <div>
-              <button
-                disabled={
-                  !belongs || lease.transitioning || pending === "control"
-                }
-                onClick={() => control("none")}
-              >
-                暂停操作
-              </button>
-              <button
-                className="primary"
-                disabled={
-                  !belongs || lease.transitioning || pending === "control"
-                }
-                onClick={() => {
-                  if (
-                    lease.owner !== "human" ||
-                    lease.humanClientId !== clientId
-                  )
-                    setView("desktop");
-                  else void control("agent");
-                }}
-              >
-                {lease.transitioning
-                  ? "正在交接…"
-                  : lease.owner !== "human" || lease.humanClientId !== clientId
-                    ? "人工接管"
-                    : "交给 Codex"}
-              </button>
-            </div>
-          </div>
         </section>
       )}
     </>

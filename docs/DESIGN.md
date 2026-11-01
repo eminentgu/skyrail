@@ -1,5 +1,15 @@
 # 设计依据
 
+## 手机触控与共享范围 2026-11-01
+
+本修订优先于下文较早的“人工仅走全桌面”与“单指滑动查看”说明。保留 Hark 风格、对话 / 电脑两页，电脑页内提供“整个桌面 / 单个 App”范围选择。单应用仍使用真实原生窗口串流，并恢复同一窗口的人工输入；完整桌面用于跨应用和系统弹窗。
+
+手机默认采用触控板：滑动只移动光标，轻点点击、连点双击，第二次点按后移动才开始拖拽。第二根手指加入时进入视图手势，不把刚发生的点按误认成第二次远程点击。双指控制 1–4 倍缩放和画面平移，缩放后光标接近边缘时画面跟随；直接点按模式可在操作选项中切换。键盘只由显式按钮展开。
+
+两种通道共用 SurfaceGestures / RemoteSurface，输入以缩放后图像的归一化坐标表示，保留空白区和宽高比的处理。桌面通过固定版本 noVNC 1.7.0 适配层编码指针包；应用通过现有 epoch / client / thread 校验队列发送。接管闸门、认证和目标范围不改变。noVNC 的全网页备用光标始终隐藏，由画面内受裁剪的光标替代；离开电脑页后停止接收输入和显示光标。
+
+参考：[RealVNC mobile interaction](https://help.realvnc.com/hc/en-us/articles/360018541231-Using-RealVNC-Viewer-for-Mobile-to-control-a-remote-device)、[Jump Desktop gestures](https://support.jumpdesktop.com/hc/en-us/articles/216423503-Getting-Started-Jump-Desktop-Controls-and-Gesture-Reference)。仅参考手势约定，未复制界面源码。
+
 ## 最新修订：保留风格，简化交互
 
 2026-11-01 用户修正：保留先前 Hark 风格，简化的是操作而非视觉。此要求取代下文早先的暖白重构和独立“会话”主导航。

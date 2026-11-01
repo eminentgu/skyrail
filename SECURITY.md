@@ -21,3 +21,7 @@ Skyrail 目前处于 0.x 早期阶段，仅对当前 main 接收修复；没有�
 - `.data/`、任务目录及凭据不得提交。公开仓库不意味着运行实例公开可用。
 
 第三方依赖、Codex 和 Cloudflare 分别适用各自的许可证及服务条款；项目 MIT 许可不授予这些服务的使用权。
+
+### Touch input adapter
+
+The mobile gesture layer maps image-relative coordinates into either the selected native window or the existing local RFB channel. It does not broaden application permissions, connect to another host, or persist cursor/key/credential payloads. noVNC 1.7.0 private pointer encoding is isolated in `desktop-rfb.mjs`; upgrades must rerun the synthetic RFB browser acceptance. Hidden views disable input and hide all remote cursors. Gesture cancellation invalidates queued native input before releasing held buttons; the server lease remains authoritative.

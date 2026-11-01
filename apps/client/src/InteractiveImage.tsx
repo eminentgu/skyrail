@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { mapPoint } from "./coordinates.mjs";
-import { TouchTap } from "./touch-tap.mjs";
-import { Icon } from "./Icon";
 import { flushSync } from "react-dom";
+import { RemoteSurface } from "./RemoteSurface";
+import type { SurfaceInput } from "./surface-gestures.mjs";
+import { Icon } from "./Icon";
 type Props = {
   src?: string;
   name: string;
@@ -13,6 +13,7 @@ type Props = {
   post: (path: string, data?: object) => Promise<any>;
   onError: (message: string) => void;
   takeControl?: () => void;
+  visible?: boolean;
 };
 export function InteractiveImage({
   src,
@@ -24,49 +25,50 @@ export function InteractiveImage({
   post,
   onError,
   takeControl,
+  visible = true,
 }: Props) {
   const image = useRef<HTMLImageElement>(null),
     keyboard = useRef<HTMLTextAreaElement>(null),
-    queue = useRef(Promise.resolve());
-  const pointer = useRef<number | null>(null),
-    gesture = useRef<TouchTap | null>(null),
-    lastMove = useRef(0),
+    queue = useRef(Promise.resolve()),
+    generation = useRef(0),
     composing = useRef(false),
-    generation = useRef(0);
+    zoom = useRef<() => void>(() => {});
+  const latest = useRef({ enabled, epoch, threadId });
+  latest.current = { enabled, epoch, threadId };
   const [focused, setFocused] = useState(false),
-    [touch, setTouch] = useState(
-      () => matchMedia("(pointer: coarse),(max-width:699px)").matches,
-    ),
-    [inputStatus, setInputStatus] = useState("");
-  const session = useRef({ enabled, epoch, threadId });
-  session.current = { enabled, epoch, threadId };
+    [mode, setMode] = useState<"trackpad" | "direct">(() =>
+      localStorage.getItem("skyrail.input") === "direct"
+        ? "direct"
+        : "trackpad",
+    );
+  const pendingMove = useRef<{ input: SurfaceInput } | null>(null);
   function send(input: object) {
     const expected = { epoch, threadId },
       version = generation.current;
+    const packet = { input: input as SurfaceInput };
+    if (packet.input.kind === "move") {
+      if (!packet.input.dragging) return; // Hover is local; native app input needs a held button.
+      if (pendingMove.current) {
+        pendingMove.current.input = packet.input;
+        return;
+      }
+      pendingMove.current = packet;
+    } else pendingMove.current = null;
     queue.current = queue.current
       .then(async () => {
+        if (pendingMove.current === packet) pendingMove.current = null;
         if (
           generation.current !== version ||
-          !session.current.enabled ||
-          session.current.epoch !== expected.epoch ||
-          session.current.threadId !== expected.threadId
+          !latest.current.enabled ||
+          latest.current.epoch !== expected.epoch ||
+          latest.current.threadId !== expected.threadId
         )
           return;
-        await post("mac/input", { ...expected, clientId, input });
-        if (generation.current === version)
-          setInputStatus(
-            (input as { kind?: string }).kind === "text"
-              ? "输入已发送"
-              : (input as { kind?: string }).kind === "tap"
-                ? "已点按"
-                : "已发送",
-          );
+        await post("mac/input", { ...expected, clientId, input: packet.input });
       })
       .catch(async (e) => {
         generation.current++;
         onError(e.message);
-        pointer.current = null;
-        gesture.current = null;
         try {
           await post("mac/release", { epoch, clientId });
         } catch {}
@@ -74,8 +76,7 @@ export function InteractiveImage({
   }
   function release() {
     generation.current++;
-    pointer.current = null;
-    gesture.current = null;
+    pendingMove.current = null;
     setFocused(false);
     keyboard.current?.blur();
     if (enabled)
@@ -83,198 +84,134 @@ export function InteractiveImage({
         .then(() => post("mac/release", { epoch, clientId }))
         .catch(() => {});
   }
-  useEffect(() => {
-    const blur = () => release();
-    window.addEventListener("blur", blur);
-    document.addEventListener("visibilitychange", blur);
-    return () => {
-      window.removeEventListener("blur", blur);
-      document.removeEventListener("visibilitychange", blur);
+  useEffect(
+    () => () => {
       release();
-    };
-  }, [enabled, epoch, threadId]);
+    },
+    [enabled, epoch, threadId],
+  );
   useEffect(() => {
-    const media = matchMedia("(pointer: coarse),(max-width:699px)");
-    const changed = () => setTouch(media.matches);
-    media.addEventListener("change", changed);
-    return () => media.removeEventListener("change", changed);
-  }, []);
-  useEffect(() => setInputStatus(""), [enabled, epoch, threadId]);
-  useEffect(() => {
+    if (!visible) release();
+  }, [visible]);
+  const frame = () => {
     const el = image.current;
-    if (!el || !enabled) return;
-    const wheel = (e: WheelEvent) => {
-      const p = mapPoint(
-        el.getBoundingClientRect(),
-        el.naturalWidth,
-        el.naturalHeight,
-        e.clientX,
-        e.clientY,
-      );
-      if (!p) return;
-      e.preventDefault();
-      send({
-        kind: "scroll",
-        ...p,
-        deltaX: Math.round(e.deltaX),
-        deltaY: Math.round(e.deltaY),
-      });
-    };
-    el.addEventListener("wheel", wheel, { passive: false });
-    return () => el.removeEventListener("wheel", wheel);
-  }, [enabled, epoch, threadId]);
-  const point = (e: { clientX: number; clientY: number }, clamp = false) =>
-    image.current
-      ? mapPoint(
-          image.current.getBoundingClientRect(),
-          image.current.naturalWidth,
-          image.current.naturalHeight,
-          e.clientX,
-          e.clientY,
-          clamp,
-        )
-      : null;
-  const flags = (e: React.MouseEvent | React.KeyboardEvent) => ({
-    shift: e.shiftKey,
-    meta: e.metaKey,
-    alt: e.altKey,
-    ctrl: e.ctrlKey,
-  });
-  function text(value: string) {
+    if (!el?.naturalWidth || !el.naturalHeight) return null;
+    const r = el.getBoundingClientRect(),
+      scale = Math.min(r.width / el.naturalWidth, r.height / el.naturalHeight),
+      w = el.naturalWidth * scale,
+      h = el.naturalHeight * scale;
+    return new DOMRect(
+      r.left + (r.width - w) / 2,
+      r.top + (r.height - h) / 2,
+      w,
+      h,
+    );
+  };
+  const text = (value: string) => {
     if (value) send({ kind: "text", text: value.slice(0, 4000) });
-  }
-  function key(code: string) {
-    send({ kind: "key", code });
-  }
+  };
+  const key = (code: string) => send({ kind: "key", code });
   return (
-    <div className={"interactive-image " + (enabled ? "can-control" : "")}>
-      <div className="remote-surface">
+    <div className="interactive-image app-interactive">
+      <RemoteSurface
+        enabled={enabled}
+        visible={visible}
+        frame={frame}
+        send={send}
+        onCancel={release}
+        onFocus={() => {
+          if (enabled) {
+            setFocused(true);
+            keyboard.current?.focus({ preventScroll: true });
+          }
+        }}
+        mode={mode}
+        resetKey={`${threadId}:${name}`}
+        onZoomReady={(fn) => {
+          zoom.current = fn;
+        }}
+      >
         <img
           ref={image}
           className="live-image"
           src={src}
           alt={`${name}的实时窗口画面`}
           draggable={false}
-          onContextMenu={(e) => {
-            if (enabled) e.preventDefault();
-          }}
-          onPointerDown={(e) => {
-            if (!enabled) return;
-            if (!e.isPrimary || pointer.current !== null) {
-              release();
-              return;
-            }
-            const p = point(e);
-            if (!p) return;
-            e.preventDefault();
-            e.currentTarget.setPointerCapture(e.pointerId);
-            pointer.current = e.pointerId;
-            lastMove.current = 0;
-            if (e.pointerType === "touch") {
-              setTouch(true);
-              gesture.current = new TouchTap(e.clientX, e.clientY);
-              return;
-            }
-            keyboard.current?.focus({ preventScroll: true });
-            setFocused(true);
-            send({
-              kind: "down",
-              ...p,
-              button: e.button,
-              clickCount: e.detail || 1,
-              ...flags(e),
-            });
-          }}
-          onPointerMove={(e) => {
-            if (
-              !enabled ||
-              pointer.current !== e.pointerId ||
-              Date.now() - lastMove.current < 70
-            )
-              return;
-            const p = point(e, true);
-            if (!p) return;
-            lastMove.current = Date.now();
-            if (gesture.current) gesture.current.move(e.clientX, e.clientY);
-            else
-              send({
-                kind: "move",
-                ...p,
-                button: e.buttons === 2 ? 2 : 0,
-                ...flags(e),
-              });
-          }}
-          onPointerUp={(e) => {
-            if (!enabled || pointer.current !== e.pointerId) return;
-            const p = point(e, true);
-            pointer.current = null;
-            if (p) {
-              if (gesture.current) {
-                gesture.current.move(e.clientX, e.clientY);
-                const tap = gesture.current.end(p);
-                if (tap) {
-                  send(tap);
-                  setInputStatus("正在点按…");
-                }
-              } else
-                send({
-                  kind: "up",
-                  ...p,
-                  button: e.button,
-                  clickCount: e.detail || 1,
-                  ...flags(e),
-                });
-            } else release();
-            gesture.current = null;
-            if (e.currentTarget.hasPointerCapture(e.pointerId))
-              e.currentTarget.releasePointerCapture(e.pointerId);
-          }}
-          onLostPointerCapture={(e) => {
-            if (pointer.current === e.pointerId) release();
-          }}
-          onPointerCancel={() => release()}
         />
-        {!touch && enabled && (
-          <div className="keyboard-hint">
-            {focused
-              ? "键盘已连接 · Escape 退出输入"
-              : "点击画面操作 · 支持拖动、滚轮与输入"}
-          </div>
+      </RemoteSurface>
+      <div className="app-touch-controls">
+        <span>{enabled ? "滑动移光标 · 轻点点击" : "只看画面"}</span>
+        <button aria-label="缩放应用画面" onClick={() => zoom.current()}>
+          <Icon name="expand" size={17} />
+        </button>
+        {!enabled ? (
+          <button className="primary" onClick={takeControl}>
+            接手操作
+          </button>
+        ) : (
+          <button
+            className="primary"
+            aria-pressed={focused}
+            onClick={() => {
+              flushSync(() => setFocused(!focused));
+              if (!focused) keyboard.current?.focus({ preventScroll: true });
+              else keyboard.current?.blur();
+            }}
+          >
+            <Icon name="keyboard" size={18} />
+            {focused ? "收起键盘" : "输入文字"}
+          </button>
         )}
+        <details className="desktop-menu">
+          <summary aria-label="应用操作选项">
+            <Icon name="settings" size={18} />
+          </summary>
+          <div>
+            <label>
+              手机操作
+              <select
+                aria-label="应用操作方式"
+                value={mode}
+                onChange={(e) => {
+                  const next = e.target.value as typeof mode;
+                  setMode(next);
+                  localStorage.setItem("skyrail.input", next);
+                }}
+              >
+                <option value="trackpad">触控板：滑动移光标</option>
+                <option value="direct">直接点按目标</option>
+              </select>
+            </label>
+            <small>
+              轻点单击，连点双击；连点后按住可拖拽。双指缩放和移动画面。
+            </small>
+          </div>
+        </details>
       </div>
       <textarea
         ref={keyboard}
         className={
-          "remote-keyboard " +
-          (touch && focused ? "mobile-keyboard-visible" : "")
+          "remote-keyboard " + (focused ? "mobile-keyboard-visible" : "")
         }
-        aria-label="远程键盘输入，按 Escape 退出"
+        aria-label="应用键盘输入"
         disabled={!enabled}
-        placeholder="在这里输入到 Mac…"
         autoComplete="off"
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        onFocus={() => setFocused(true)}
-        onBlur={() => {
-          if (!touch) release();
-        }}
+        placeholder="在这里输入到应用…"
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing || composing.current) return;
-          if (e.key === "Escape") {
-            e.preventDefault();
-            release();
-            return;
-          }
           const specials = [
             "Enter",
             "Tab",
             "Backspace",
             "Delete",
+            "Escape",
             "ArrowLeft",
             "ArrowRight",
-            "ArrowDown",
             "ArrowUp",
+            "ArrowDown",
             "Home",
             "End",
             "PageUp",
@@ -282,7 +219,14 @@ export function InteractiveImage({
           ];
           if (specials.includes(e.key) || e.metaKey || e.ctrlKey || e.altKey) {
             e.preventDefault();
-            send({ kind: "key", code: e.code, ...flags(e) });
+            send({
+              kind: "key",
+              code: e.code,
+              shift: e.shiftKey,
+              meta: e.metaKey,
+              ctrl: e.ctrlKey,
+              alt: e.altKey,
+            });
           }
         }}
         onCompositionStart={() => {
@@ -304,67 +248,21 @@ export function InteractiveImage({
           text(e.clipboardData.getData("text/plain"));
         }}
       />
-      {touch && (
-        <div
-          className="touch-controls"
-          role="group"
-          aria-label="手机点按与输入"
-        >
-          {!enabled ? (
+      {focused && (
+        <div className="desktop-special-keys">
+          {[
+            ["Tab", "Tab"],
+            ["Enter", "回车"],
+            ["Backspace", "退格"],
+          ].map(([code, label]) => (
             <button
-              className="primary touch-takeover"
-              onClick={takeControl}
-              disabled={!takeControl}
+              key={code}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => key(code)}
             >
-              <Icon name="monitor" size={18} />
-              接管后点按画面
+              {label}
             </button>
-          ) : (
-            <div className="touch-actions">
-              <span>
-                <span className="status-dot" />
-                点按画面即可操作
-              </span>
-              <button
-                aria-pressed={focused}
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  if (focused) release();
-                  else {
-                    flushSync(() => setFocused(true));
-                    keyboard.current?.focus({ preventScroll: true });
-                  }
-                }}
-              >
-                <Icon name="keyboard" size={18} />
-                {focused ? "收起键盘" : "输入文字"}
-              </button>
-            </div>
-          )}
-          {focused && (
-            <div className="touch-keys">
-              {[
-                ["Tab", "Tab"],
-                ["Enter", "回车"],
-                ["Backspace", "退格"],
-              ].map(([code, label]) => (
-                <button
-                  key={code}
-                  disabled={!enabled}
-                  onPointerDown={(e) => e.preventDefault()}
-                  onClick={() => key(code)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          <small role="status">
-            {inputStatus ||
-              (!enabled
-                ? "先接管，再轻点目标位置"
-                : "轻点目标位置，再打开键盘输入。")}
-          </small>
+          ))}
         </div>
       )}
     </div>

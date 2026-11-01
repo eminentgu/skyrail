@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import type RFB from "@novnc/novnc";
+import type RFB from "./desktop-rfb.mjs";
+import { RemoteSurface } from "./RemoteSurface";
 import { flushSync } from "react-dom";
 import { Icon } from "./Icon";
 type Props = {
@@ -21,6 +22,12 @@ export function RemoteDesktop({
   visible = true,
   onStopReady,
 }: Props) {
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const zoomAction = useRef<() => void>(() => {});
+  const [inputMode, setInputMode] = useState<"trackpad" | "direct">(() =>
+    localStorage.getItem("skyrail.input") === "direct" ? "direct" : "trackpad",
+  );
   const [open, setOpen] = useState(embedded),
     [stage, setStage] = useState("setup"),
     [error, setError] = useState(""),
@@ -28,8 +35,6 @@ export function RemoteDesktop({
     [active, setActive] = useState(false),
     [credentialTypes, setCredentialTypes] = useState<string[]>([]),
     [keyboard, setKeyboard] = useState(false),
-    [fit, setFit] = useState(true),
-    [pan, setPan] = useState(false),
     [account, setAccount] = useState(""),
     [controller, setController] = useState<"human" | "view">("human"),
     [switching, setSwitching] = useState(false);
@@ -93,13 +98,6 @@ export function RemoteDesktop({
       disconnect();
     };
   }, []);
-  useEffect(() => {
-    if (rfb.current) {
-      rfb.current.scaleViewport = fit;
-      rfb.current.clipViewport = !fit;
-      rfb.current.dragViewport = !fit && pan;
-    }
-  }, [fit, pan]);
 
   useEffect(() => {
     if (!embedded && open && !surface.current?.open)
@@ -113,6 +111,7 @@ export function RemoteDesktop({
     if (!visible) {
       rfb.current?.blur();
       typing.current?.blur();
+      rfb.current?.releasePointer();
     }
   }, [visible]);
   async function check() {
@@ -146,7 +145,7 @@ export function RemoteDesktop({
       }
       session.current = s;
       const [{ default: Client }, { initLogging }] = await Promise.all([
-        import("@novnc/novnc"),
+        import("./desktop-rfb.mjs"),
         import("skyrail-novnc-logging"),
       ]);
       initLogging("none");
@@ -178,11 +177,11 @@ export function RemoteDesktop({
         if (attempt !== generation.current) return;
         erase();
         setStage("live");
-        setFit(true);
-        setPan(false);
-        client.viewOnly = false;
+
+        client.viewOnly = !visibleRef.current;
         setController("human");
-        client.focus();
+        if (visibleRef.current) client.focus();
+        else client.blur();
       });
       client.addEventListener("securityfailure", () => {
         if (attempt === generation.current)
@@ -263,6 +262,13 @@ export function RemoteDesktop({
     if (controller === "human" && !switching)
       rfb.current?.sendKey(symbol, code);
   }
+  useEffect(() => {
+    localStorage.setItem("skyrail.input", inputMode);
+  }, [inputMode]);
+  useEffect(() => {
+    if (rfb.current)
+      rfb.current.viewOnly = !visible || controller !== "human" || switching;
+  }, [visible, controller, switching, stage]);
   const content = (
     <>
       <div className="desktop-toolbar">
@@ -272,7 +278,7 @@ export function RemoteDesktop({
           <span role="status">
             {stage === "live"
               ? controller === "human"
-                ? "已连接 · 可点按操作"
+                ? "已连接 · 可操作"
                 : "已连接 · 只看画面"
               : stage === "credentials"
                 ? "验证 Mac 账户"
@@ -300,6 +306,22 @@ export function RemoteDesktop({
               <Icon name="settings" size={18} />
             </summary>
             <div>
+              <label>
+                手机操作
+                <select
+                  aria-label="手机操作方式"
+                  value={inputMode}
+                  onChange={(e) =>
+                    setInputMode(e.target.value as "trackpad" | "direct")
+                  }
+                >
+                  <option value="trackpad">触控板：滑动移光标</option>
+                  <option value="direct">直接点按目标</option>
+                </select>
+              </label>
+              <small>
+                轻点单击，连点双击；连点后按住可拖拽。双指缩放或移动画面。
+              </small>
               <button onClick={() => void close()}>断开连接</button>
               <small>切换对话不会断开或锁屏。</small>
             </div>
@@ -307,7 +329,7 @@ export function RemoteDesktop({
         </div>
       </div>
       <p className="desktop-privacy">
-        点按桌面即可操作，新窗口也在这里。需要打字时，打开下方“输入文字”。
+        滑动移动光标，轻点单击，连点双击。双指缩放画面。
       </p>
       {error && (
         <p className="desktop-error" role="alert">
@@ -315,10 +337,28 @@ export function RemoteDesktop({
         </p>
       )}
       <div
-        className="desktop-screen"
-        ref={screen}
+        className="desktop-screen-wrap"
         hidden={stage !== "live" && stage !== "connecting"}
-      />
+      >
+        <RemoteSurface
+          enabled={stage === "live" && controller === "human" && !switching}
+          visible={visible && stage === "live"}
+          mode={inputMode}
+          frame={() =>
+            screen.current?.querySelector("canvas")?.getBoundingClientRect() ||
+            null
+          }
+          send={(input) => rfb.current?.sendPointer(input)}
+          onCancel={() => rfb.current?.releasePointer()}
+          onFocus={() => rfb.current?.focus()}
+          onZoomReady={(fn) => {
+            zoomAction.current = fn;
+          }}
+          resetKey={stage}
+        >
+          <div className="desktop-screen" ref={screen} />
+        </RemoteSurface>
+      </div>
       {stage === "credentials" && (
         <form
           className="desktop-form"
@@ -419,21 +459,18 @@ export function RemoteDesktop({
             <span>
               <span className="status-dot" />
               {controller === "human"
-                ? fit
-                  ? "点按操作"
-                  : "滑动查看"
+                ? inputMode === "trackpad"
+                  ? "滑动移光标 · 轻点点击"
+                  : "点按目标 · 滑动移光标"
                 : "只看画面，随时接手"}
             </span>
             <button
               className="desktop-zoom"
-              aria-label={fit ? "放大桌面" : "显示完整桌面"}
-              onClick={() => {
-                setFit(!fit);
-                setPan(fit);
-              }}
+              aria-label="缩放画面"
+              onClick={() => zoomAction.current()}
             >
-              <Icon name={fit ? "expand" : "monitor"} size={17} />
-              {fit ? "放大" : "全览"}
+              <Icon name="expand" size={17} />
+              缩放
             </button>
             {controller === "view" ? (
               <button
