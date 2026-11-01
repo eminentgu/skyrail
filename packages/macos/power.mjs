@@ -1,30 +1,31 @@
 import {spawn} from 'node:child_process';
-// The native window server needs an active display. Wake only during a remote
-// viewer, model turn or snapshot. A virtual-display installation may opt out.
+// Chat tasks hold the CPU; a viewer or snapshot may additionally wake display.
+// Existing virtual-display deployments can opt out of physical display wake.
 export class MacPower {
- constructor({platform=process.platform,launch=spawn,wakeDisplay=process.env.SKYRAIL_DISPLAY_MODE!=='headless',onError=()=>{}}={}){this.platform=platform;this.launch=launch;this.wakeDisplay=wakeDisplay;this.onError=onError;this.child=null;this.closed=false;this.active=false;this.captures=0}
+ constructor({platform=process.platform,launch=spawn,wakeDisplay=process.env.SKYRAIL_DISPLAY_MODE!=='headless',onError=()=>{}}={}){this.platform=platform;this.launch=launch;this.wakeDisplay=wakeDisplay;this.onError=onError;this.child=null;this.closed=false;this.active=false;this.displayActive=false;this.captures=0;this.grace=false}
  sync(){
-  clearTimeout(this.releaseTimer);
-  if((this.active||this.captures>0)&&!this.closed&&this.platform==='darwin'){
-   if(this.child)return false;
-   const args=[...(this.wakeDisplay?['-d','-u']:[]),'-i','-w',String(process.pid)];
-   const child=this.launch('/usr/bin/caffeinate',args,{stdio:'ignore'});this.child=child;
+  const display=this.wakeDisplay&&(this.displayActive||this.captures>0||this.grace);
+  if((this.active||this.captures>0||this.grace)&&!this.closed&&this.platform==='darwin'){
+   if(this.child&&this.childDisplay===display)return false;
+   const args=[...(display?['-d','-u']:[]),'-i','-w',String(process.pid)];
+   const child=this.launch('/usr/bin/caffeinate',args,{stdio:'ignore'});const previous=this.child;this.child=child;this.childDisplay=display;
    const clear=()=>{if(this.child===child)this.child=null};
-   child.once('error',e=>{clear();this.onError(e)});child.once('exit',clear);child.unref();return true;
+   child.once('error',e=>{clear();this.onError(e)});child.once('exit',clear);child.unref();previous?.kill();return true;
   }
   const child=this.child;this.child=null;child?.kill();return false;
  }
- setActive(active){this.active=active;this.sync()}
+ setActive(active,{display=this.wakeDisplay}={}){this.active=active;this.displayActive=active&&display;this.sync()}
  async withCapture(action){
-  this.captures++;const started=this.sync();
-  let succeeded=false;
+  this.captures++;const started=this.sync();let succeeded=false;
   try{if(started&&this.wakeDisplay)await new Promise(r=>setTimeout(r,700));const result=await action();succeeded=true;return result}
   finally{
    this.captures--;
-   // Keep a successful bind awake long enough for its browser to attach video.
-   if(succeeded&&this.wakeDisplay&&!this.active&&this.captures===0&&!this.closed){this.releaseTimer=setTimeout(()=>this.sync(),1500);this.releaseTimer.unref()}
-   else this.sync();
+   if(succeeded&&this.wakeDisplay&&this.captures===0&&!this.closed){
+    // Retain the display across the successful bind -> video subscription gap.
+    this.grace=true;clearTimeout(this.releaseTimer);this.releaseTimer=setTimeout(()=>{this.grace=false;this.sync()},1500);this.releaseTimer.unref();
+   }
+   this.sync();
   }
  }
- close(){this.closed=true;this.active=false;this.sync()}
+ close(){this.closed=true;this.active=false;this.grace=false;clearTimeout(this.releaseTimer);this.sync()}
 }

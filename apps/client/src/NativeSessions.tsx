@@ -1,0 +1,10 @@
+import React,{useEffect,useRef,useState}from'react';
+type Session={id:string;title:string;cwd:string;originator?:string;updatedAt:number;linked:boolean};
+export function NativeSessions({post,onImport}:{post:(path:string,data?:object)=>Promise<any>;onImport:(state:any,id:string)=>void}){
+ const [items,setItems]=useState<Session[]>([]),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[cursor,setCursor]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const postRef=useRef(post);postRef.current=post;
+ async function load(value='',next?:string){setBusy(true);setError('');try{const r=await postRef.current('sessions/list',{search:value,cursor:next});setItems(previous=>next?[...previous,...r.sessions.filter((s:Session)=>!previous.some(p=>p.id===s.id))]:r.sessions);setCursor(r.nextCursor||null);setQuery(value)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ useEffect(()=>{void load()},[]);
+ async function open(id:string){setBusy(true);setError('');try{const r=await postRef.current('sessions/import',{codexId:id});onImport(r,r.threadId)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ return <div className="native-sessions"><p className="history-note">读取本机 Codex 的持久化会话。导入后保留原编号、工作目录、原有工具与历史，后续记录可同步。</p><form className="session-search" onSubmit={e=>{e.preventDefault();void load(search)}}><input aria-label="搜索 Codex 会话" placeholder="搜索 Codex 会话" value={search} onChange={e=>setSearch(e.target.value)}/><button disabled={busy}>搜索</button></form>{error&&<p role="alert" className="error">{error}</p>}{items.map(s=><div className="native-session" key={s.id}><button disabled={busy} onClick={()=>open(s.id)}><strong>{s.title}</strong><small>{s.cwd}</small><span>{s.linked?'已关联 · 打开':'导入此会话'} · {new Date(s.updatedAt*1000).toLocaleDateString('zh-HK')}</span></button></div>)}{!items.length&&!busy&&!error&&<p className="history-note">没有找到匹配的 Codex 会话。</p>}{busy&&<p role="status" className="history-note">正在读取 Codex 记录…</p>}{cursor&&<button className="new" disabled={busy} onClick={()=>load(query,cursor)}>加载更多</button>}</div>
+}

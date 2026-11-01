@@ -20,3 +20,11 @@
 - Isolate and disable system-cursor capture that reproduced -3811 on two Mac applications.
 - Report unavailable displays separately from missing system permissions.
 - Hold session-scoped system/display wake assertions during active viewing and model tasks; release on inactivity. Existing virtual-display setups can opt out of physical wake with headless mode.
+
+### Shared Codex sessions and connection recovery
+
+- Keep the original native session ID across tool-version changes; synchronize confirmed history from Codex and expose search/import, manual refresh and copy-ID controls.
+- Use a separate process for each active session writer, release it after completion, and preserve read-only history access. Report foreign writer conflicts without cloning the conversation or silently losing the draft.
+- Detect system lock independently of TCC permissions, pause and disconnect computer control, and allow chat/history synchronization to continue.
+- Recover zero-frame video through an isolated read-only window snapshot source; reject late frames after a switch.
+- Protect replacement connections from stale process exits and replies; expose backend protocol identity for restart verification.

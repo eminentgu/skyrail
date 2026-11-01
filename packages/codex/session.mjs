@@ -1,15 +1,19 @@
 export const TOOL_VERSION='skyrail-mac-v2';
+export async function releaseSession(codex,thread,resumed){
+ if(thread.codexId&&resumed.has(thread.id)){await codex.rpc('thread/unsubscribe',{threadId:thread.codexId});resumed.delete(thread.id)}
+ thread.needsResume=true;
+}
 export async function prepareSession(codex,thread,{cwd,tools,instructions,resumed,save}){
- let priorContext;
- if(!thread.codexId||thread.toolVersion!==TOOL_VERSION){
-  if(thread.codexId){
-   thread.previousCodexIds=[...(thread.previousCodexIds||[]),thread.codexId];
-   priorContext=JSON.stringify(thread.messages.filter(m=>m.role==='user'||m.role==='assistant').slice(-30).map(m=>({role:m.role,text:m.text})));
+ if(!thread.codexId){
+  const result=await codex.rpc('thread/start',{cwd,approvalPolicy:'untrusted',sandbox:'read-only',ephemeral:false,historyMode:'paginated',threadSource:'skyrail',dynamicTools:tools,developerInstructions:instructions});
+  thread.codexId=result.thread.id;thread.toolVersion=TOOL_VERSION;thread.cwd=result.thread.cwd||cwd;resumed.add(thread.id);await save();
+ }else{
+  // A tool-version mismatch must never silently replace the user's session.
+  // Unload our idle copy after external edits so resume reads persisted history.
+  if(resumed.has(thread.id)&&thread.needsResume)await releaseSession(codex,thread,resumed);
+  if(!resumed.has(thread.id)){
+   await codex.rpc('thread/resume',{threadId:thread.codexId,cwd:thread.cwd||cwd,approvalPolicy:'untrusted',sandbox:'read-only',developerInstructions:instructions});resumed.add(thread.id);
   }
-  const result=await codex.rpc('thread/start',{cwd,approvalPolicy:'untrusted',sandbox:'read-only',dynamicTools:tools,developerInstructions:instructions});
-  thread.codexId=result.thread.id;thread.toolVersion=TOOL_VERSION;resumed.add(thread.id);await save();
- }else if(!resumed.has(thread.id)){
-  await codex.rpc('thread/resume',{threadId:thread.codexId,cwd,approvalPolicy:'untrusted',sandbox:'read-only',developerInstructions:instructions});resumed.add(thread.id);
  }
- return priorContext;
+ thread.needsResume=false;
 }

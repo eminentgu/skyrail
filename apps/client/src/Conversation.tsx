@@ -1,7 +1,7 @@
 import React from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-export type ChatMessage={id:string;role:string;text:string;createdAt?:string;status?:string;action?:string;app?:string;error?:string};
+export type ChatMessage={id:string;role:string;text:string;createdAt?:string;status?:string;action?:string;app?:string;error?:string;pending?:boolean};
 export type ChatApproval={id:string;threadId:string;kind?:string;app:string;args:{action:string;index?:number;value?:string;key?:string}};
 export function groupMessages(messages:ChatMessage[]){const result:ChatMessage[]=[];for(const message of messages){const last=result.at(-1);if(message.role==='assistant'&&last?.role==='assistant'){last.text+='\n\n'+message.text}else result.push({...message})}return result}
 function ApprovalCard({approval,decide}:{approval:ChatApproval;decide:(id:string,allow:boolean,allowAll?:boolean)=>Promise<void>}){
@@ -14,6 +14,6 @@ export function Conversation({messages,approvals,decide}:{messages:ChatMessage[]
  return <>{groupMessages(messages).map(m=>{
  const approval=approvals.find(a=>'tool:'+a.id===m.id);const time=m.createdAt?new Date(m.createdAt).toLocaleTimeString('zh-HK',{hour:'2-digit',minute:'2-digit'}):'';
  if(m.role==='tool')return <div className={'tool-event '+m.status} key={m.id}><div className="tool-event-line"><span aria-hidden>{m.status==='completed'?'✓':m.status==='failed'?'!':m.status==='waiting_approval'?'◈':'◌'}</span><strong>{m.text}</strong><span>{m.status==='waiting_approval'?'等待确认':m.status==='completed'?'已完成':m.status==='failed'?'未完成':'进行中'}</span></div>{approval&&<ApprovalCard approval={approval} decide={decide}/>}<details><summary>查看详情</summary><p>{m.app||'本机 Mac'}{m.error?' · '+m.error:''}</p></details></div>;
- return <article className={'message '+m.role} key={m.id}><div className="message-meta"><span aria-hidden="true" className={'avatar '+m.role}>{m.role==='user'?'●':'╱'}</span><span>{m.role==='user'?'你':'Codex'}</span><time>{time}</time></div><div className="message-body"><Markdown remarkPlugins={[remarkGfm]} components={{a:({children,...props})=><a {...props} target="_blank" rel="noreferrer noopener">{children}</a>,img:({alt})=><span>[图片：{alt||'未加载'}]</span>}}>{m.text||'正在生成…'}</Markdown></div></article>
+ return <article className={'message '+m.role} key={m.id}><div className="message-meta"><span aria-hidden="true" className={'avatar '+m.role}>{m.role==='user'?'●':'╱'}</span><span>{m.role==='user'?'你':'Codex'}</span><time>{time}</time>{m.pending&&<small>发送结果待确认</small>}</div><div className="message-body"><Markdown remarkPlugins={[remarkGfm]} components={{a:({children,...props})=><a {...props} target="_blank" rel="noreferrer noopener">{children}</a>,img:({alt})=><span>[图片：{alt||'未加载'}]</span>}}>{m.text||'正在生成…'}</Markdown></div></article>
  })}{approvals.filter(a=>!messages.some(m=>m.id==='tool:'+a.id)).map(a=><ApprovalCard key={a.id} approval={a} decide={decide}/>)}</>;
 }

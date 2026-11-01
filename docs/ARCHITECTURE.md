@@ -43,3 +43,17 @@ Touch input uses a separate gesture recognizer. Scroll starts without a remote m
 The local reproduction isolated -3811 to `showsCursor=true`; snapshots and video now set it false and explicitly disable audio. A shared content check distinguishes an empty display list from missing Accessibility permission. Native error messages do not claim that starting a capture or receiving heartbeats proves that frames exist.
 
 MacPower holds a process-scoped caffeinate assertion while viewers, model turns or snapshot requests exist. The default uses display wake plus system idle-sleep prevention; a successful bind has a brief handoff allowance for its video subscriber. Closing the service releases all holds. The headless option omits physical display wake and requires a separately validated virtual display. No permanent power setting, TCC database modification, login bypass or OS sleep bypass is implemented.
+
+## Native session identity and history synchronization
+
+The Codex durable session is the authority for confirmed user, assistant and visible tool history. Skyrail retains a separate local row ID for UI state and computer leases, mapped to one stable `codexId`; tool-version changes no longer fork a replacement. `thread/read` plus fully paginated `thread/turns/list` reads preserve order and compact away images and hidden reasoning before browser delivery. Prior native IDs from earlier migrations are read as predecessors rather than pasted back into new user turns.
+
+`clientUserMessageId` links a submitted user message to its native history item. Sync replaces confirmed cache entries, retains submissions with unknown outcomes, and never creates a second native user turn to repair the view. Native names and cwd are retained. Local soft deletion remains separate from native archive/delete.
+
+The app-server retains unsubscribed sessions during its no-subscriber grace period. `SessionWriters` therefore scopes one process to each active Skyrail session and shuts it down after completion, waiting for exit before exposing completion. A separate read-only connection polls stored history. Independent threads do not lose their connections during this handoff. Late responses from a former process are never written into a replacement connection. Existing foreign writers are not evicted; drafts are restored and an explicit conflict is returned.
+
+## Lock state and zero-frame recovery
+
+`SkyrailSessionStatus` is a separate CoreGraphics read-only helper, so upgrading lock detection does not replace the TCC-authorized Mac app. The service checks lock status before input/capture and periodically while browsers are connected. Locking revokes control, rejects pending approval, disconnects the window and interrupts owned computer work. It does not enter credentials or unlock the system.
+
+An SCStream heartbeat without frames is insufficient. If no frames arrive or the primary capture fails, an isolated native process supplies repeated window snapshots over the existing multipart connection. This process has its own AX indices and only observes the selected app/window. Frames are discarded on generation changes; capture failures never retry writes. The compatibility path uses the existing native observe method to preserve the installed app's signature; optimized capture-only APIs remain future work.

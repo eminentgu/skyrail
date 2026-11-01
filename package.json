@@ -12,7 +12,8 @@
     "test": "node --test tests/*.test.mjs",
     "start": "node apps/local-service/server.mjs",
     "setup:mac": "sh scripts/build-macos.sh",
-    "service:install": "node scripts/install-service.mjs"
+    "service:install": "node scripts/install-service.mjs",
+    "setup:session": "sh scripts/build-session-status.sh"
   },
   "dependencies": {
     "react": "19.2.0",
