@@ -21,7 +21,7 @@
     "react-dom": "19.2.0",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
-    "vite": "7.3.7",
+    "vite": "8.3.5",
     "ws": "8.22.1"
   },
   "devDependencies": {
