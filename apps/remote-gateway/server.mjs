@@ -2,6 +2,7 @@ import http from 'node:http';
 import {randomBytes,createHash,createHmac,timingSafeEqual} from 'node:crypto';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
+import {rejectUpgrade} from '../../packages/macos/desktop.mjs';
 const root=path.resolve(import.meta.dirname,'../..');const dataRoot=process.env.SKYRAIL_GATEWAY_DATA||path.join(root,'.data');await mkdir(dataRoot,{recursive:true});
 const publicHost=process.env.SKYRAIL_REMOTE_HOST;
 if(!publicHost||!/^[a-z0-9.-]+$/i.test(publicHost))throw Error('Set SKYRAIL_REMOTE_HOST to your HTTPS hostname, without scheme or port');
@@ -30,5 +31,30 @@ const server=http.createServer(async(req,res)=>{
  const proxy=http.request({hostname:'127.0.0.1',port:upstreamPort,path:req.url,method:req.method,headers},upstream=>{res.writeHead(upstream.statusCode,upstream.headers);res.flushHeaders();upstream.pipe(res)});
  proxy.on('error',()=>{if(!res.headersSent)res.writeHead(502,{'Content-Type':'text/plain; charset=utf-8'});res.end('Skyrail 本地服务未启动，请在 Mac 上启动工作台。')});res.on('close',()=>proxy.destroy());req.pipe(proxy);
 });
+// WebSocket upgrades bypass the HTTP handler above: validate all boundaries
+// again, then proxy only the dedicated human desktop endpoint. No payload logs.
+const desktopSockets=new Set();
+server.on('upgrade',(req,socket,head)=>{
+ if(req.url!=='/v1/desktop/socket')return rejectUpgrade(socket,404);
+ const allowedHosts=[publicHost,`127.0.0.1:${port}`];
+ if(!allowedHosts.includes(req.headers.host)||![`https://${publicHost}`,`http://127.0.0.1:${port}`].includes(req.headers.origin))return rejectUpgrade(socket);
+ if(!authenticated(req))return rejectUpgrade(socket,401);
+ const headers={...req.headers,host:`127.0.0.1:${upstreamPort}`,origin:`http://127.0.0.1:${upstreamPort}`};delete headers['x-forwarded-host'];
+ const proxy=http.request({hostname:'127.0.0.1',port:upstreamPort,path:'/v1/desktop/socket',method:'GET',headers});
+ let upstreamSocket;const expire=setInterval(()=>{if(!authenticated(req))socket.destroy()},10000);expire.unref();
+ const cleanup=()=>{clearInterval(expire);desktopSockets.delete(socket);proxy.destroy();upstreamSocket?.destroy()};
+ socket.on('close',cleanup);socket.on('error',cleanup);desktopSockets.add(socket);
+ proxy.setTimeout(10000,()=>{rejectUpgrade(socket,504);cleanup()});
+ proxy.on('error',()=>{rejectUpgrade(socket,502);cleanup()});
+ proxy.on('response',response=>{response.resume();rejectUpgrade(socket,[400,401,403,404,409,503].includes(response.statusCode)?response.statusCode:502);cleanup()});
+ proxy.on('upgrade',(upstream,peer,upstreamHead)=>{
+  upstreamSocket=peer;proxy.setTimeout(0);
+  const response=['HTTP/1.1 101 Switching Protocols'];for(let i=0;i<upstream.rawHeaders.length;i+=2)response.push(`${upstream.rawHeaders[i]}: ${upstream.rawHeaders[i+1]}`);
+  socket.write(response.join('\r\n')+'\r\n\r\n');if(upstreamHead.length)socket.write(upstreamHead);if(head.length)peer.write(head);
+  peer.on('error',()=>socket.destroy());peer.on('close',()=>socket.destroy());socket.pipe(peer).pipe(socket);
+ });
+ proxy.end();
+});
 server.listen(port,'127.0.0.1',()=>console.log(`Skyrail remote gateway ready on 127.0.0.1:${port} for ${publicHost}`));
-process.on('SIGTERM',()=>server.close(()=>process.exit(0)));process.on('SIGINT',()=>server.close(()=>process.exit(0)));
+const close=()=>{for(const socket of desktopSockets)socket.destroy();server.close(()=>process.exit(0))};
+process.on('SIGTERM',close);process.on('SIGINT',close);

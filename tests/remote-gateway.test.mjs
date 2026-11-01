@@ -1,11 +1,15 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import http from 'node:http';import net from 'node:net';import{spawn}from'node:child_process';import{mkdtemp,readFile,rm}from'node:fs/promises';import os from'node:os';import path from'node:path';
+import {WebSocket,WebSocketServer} from 'ws';import {once} from 'node:events';
 test('remote gateway preserves same-origin login and protects app API',async t=>{
  const data=await mkdtemp(path.join(os.tmpdir(),'skyrail-gateway-'));
- const origin=http.createServer((req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({app:true,host:req.headers.host}))});await new Promise(r=>origin.listen(0,'127.0.0.1',r));
+ const origin=http.createServer((req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({app:true,host:req.headers.host}))});
+ const wss=new WebSocketServer({noServer:true,handleProtocols:protocols=>protocols.has('binary')?'binary':false});let upgrades=0;
+ origin.on('upgrade',(req,socket,head)=>{assert.equal(req.headers.origin,`http://127.0.0.1:${origin.address().port}`);assert.equal(req.headers.host,`127.0.0.1:${origin.address().port}`);assert.match(req.headers.cookie,/skyrail=local-proof/);upgrades++;wss.handleUpgrade(req,socket,head,ws=>ws.on('message',data=>ws.send(data)))});
+ await new Promise(r=>origin.listen(0,'127.0.0.1',r));
  const reserve=net.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
  const child=spawn(process.execPath,['apps/remote-gateway/server.mjs'],{cwd:process.cwd(),env:{...process.env,SKYRAIL_REMOTE_HOST:'gateway.example.test',GATEWAY_PORT:String(port),PORT:String(origin.address().port),SKYRAIL_GATEWAY_DATA:data},stdio:['ignore','pipe','pipe']});
- t.after(async()=>{child.kill();origin.closeAllConnections();await new Promise(r=>origin.close(r));await rm(data,{recursive:true,force:true})});
+ t.after(async()=>{for(const ws of wss.clients)ws.terminate();wss.close();child.kill();origin.closeAllConnections();await new Promise(r=>origin.close(r));await rm(data,{recursive:true,force:true})});
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('gateway startup timeout')),5000);child.once('error',reject);child.stdout.once('data',()=>{clearTimeout(timer);resolve()})});
  const base=`http://127.0.0.1:${port}`;const page=await fetch(base);assert.equal(page.headers.get('referrer-policy'),'same-origin');assert.match(await page.text(),/远程访问密码/);
  assert.equal((await fetch(base+'/v1/bootstrap')).status,401);
@@ -14,4 +18,9 @@ test('remote gateway preserves same-origin login and protects app API',async t=>
  const app=await fetch(base+'/v1/bootstrap',{headers:{Cookie:cookie.split(';')[0]}});assert.equal((await app.json()).app,true);
  const denied=await fetch(base+'/v1/bootstrap',{headers:{Origin:'https://untrusted.example',Cookie:cookie.split(';')[0]}});assert.equal(denied.status,403);
  const bad=await fetch(base+'/_access/login',{method:'POST',body:new URLSearchParams({password:'wrong'})});assert.equal(bad.status,401);
+ const access=cookie.split(';')[0]+'; skyrail=local-proof';
+ const socket=(headers={},endpoint='/v1/desktop/socket')=>new WebSocket(base.replace('http:','ws:')+endpoint,['binary','skyrail.'+'a'.repeat(64)],{headers:{Origin:base,Cookie:access,...headers}});
+ const deniedSocket=async(ws,status)=>new Promise((resolve,reject)=>{ws.once('unexpected-response',(_req,res)=>{assert.equal(res.statusCode,status);res.resume();ws.terminate();resolve()});ws.once('open',()=>reject(Error('unauthorized websocket accepted')));ws.on('error',()=>{})});
+ await deniedSocket(socket({Cookie:''}),401);await deniedSocket(socket({Origin:''}),403);await deniedSocket(socket({Origin:'https://untrusted.example'}),403);await deniedSocket(socket({Host:'other.example'}),403);await deniedSocket(socket({},'/v1/desktop/socket?host=other.example'),404);
+ assert.equal(upgrades,0);const ws=socket();await once(ws,'open');assert.equal(ws.protocol,'binary');const response=once(ws,'message');ws.send(Buffer.from([0,1,2,255]));assert.deepEqual((await response)[0],Buffer.from([0,1,2,255]));assert.equal(upgrades,1);const closed=once(ws,'close');ws.close();await closed;
 });

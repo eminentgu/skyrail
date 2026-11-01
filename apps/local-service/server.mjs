@@ -9,6 +9,7 @@ import {prepareSession} from '../../packages/codex/session.mjs';
 import {readSession,applySession,messagesFromTurns} from '../../packages/codex/history.mjs';
 import {MacStream} from '../../packages/macos/stream.mjs';
 import {MacPower} from '../../packages/macos/power.mjs';
+import {DesktopConsole,probeDesktop,rejectUpgrade} from '../../packages/macos/desktop.mjs';
 import {MacBridge,computerTools,macInstructions} from '../../packages/macos/index.mjs';
 const root=path.resolve(import.meta.dirname,'../..');process.chdir(root);
 await mkdir('.data',{recursive:true});await mkdir('workspaces',{recursive:true});
@@ -40,13 +41,21 @@ async function syncNative(thread){
 }
 const stream=new MacStream(root);
 const power=new MacPower({onError:()=>console.warn('Skyrail could not prevent system idle sleep')});
-const syncPower=()=>power.setActive(stream.clients.size>0||threads.some(t=>['running','submitting'].includes(t.status)),{display:stream.clients.size>0||!!(mac.state.app&&!mac.state.health?.locked&&threads.some(t=>t.id===mac.state.threadId&&['running','submitting'].includes(t.status)))});
+const syncPower=()=>power.setActive(desktop.active||stream.clients.size>0||threads.some(t=>['running','submitting'].includes(t.status)),{display:desktop.active||stream.clients.size>0||!!(mac.state.app&&!mac.state.health?.locked&&threads.some(t=>t.id===mac.state.threadId&&['running','submitting'].includes(t.status)))});
 stream.on('activity',syncPower);
 stream.on('change',()=>publish());
 const mac=new MacBridge(root,{power});const approvals=new Map();
+const desktop=new DesktopConsole({beforeAcquire:async()=>{
+ for(const [id,a] of approvals){approvals.delete(id);a.resolve(false)}
+ if(mac.state.transitioning)throw Object.assign(Error('窗口正在交接，请稍后打开人工控制台'),{status:409});
+ if(mac.state.app){await mac.disconnect(mac.state.epoch);stream.select(null,null)}
+ await Promise.all(threads.filter(t=>['running','submitting'].includes(t.status)&&writers.get(t.id)).map(t=>interruptThread(t).catch(()=>{})));
+}});
+desktop.on('change',()=>publish());
+mac.externalControl=()=>desktop.active;
 mac.on('change',()=>publish());
 const serviceId=randomUUID();
-const snapshot=()=>({service:{id:serviceId,protocol:5},threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
+const snapshot=()=>({service:{id:serviceId,protocol:6},desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
 function publish(){syncPower();const data='data: '+JSON.stringify(snapshot())+'\n\n';for(const c of clients)c.write(data)}
 codex.on('offline',()=>{runtime='disconnected';publish()});
 function handleNotification({method,params:p}){
@@ -77,7 +86,7 @@ codex.toolHandler=async p=>{
  thread.messages.push(activity);let openedApp=null;await save();publish();
  const finish=async(result)=>{activity.status='completed';await save();publish();return {success:true,contentItems:[{type:'inputText',text:result.text},...(result.image?[{type:'inputImage',imageUrl:result.image}]:[])]}};
  try{
-  if(!['status','list_apps'].includes(args.action))mac.assertUnlocked();
+  if(!['status','list_apps'].includes(args.action)){if(desktop.active)throw Error('人工全桌面控制台正在使用；请等用户断开并重新连接应用后再操作');mac.assertUnlocked();}
   if(args.action==='status'){const health=await mac.health();return await finish({text:JSON.stringify({backend:'Skyrail native macOS',systemPermissions:health,app:mac.state.app,owner:mac.state.owner,boundToThisThread:mac.state.threadId===thread.id,confirmationMode:mac.state.approvalMode,guidance:health.locked?'Mac 当前已锁屏，需要本人解锁后重新连接':!health.accessibility||!health.screenRecording?'打开电脑面板中的系统权限入口':!mac.state.app?'调用 open_app 请求应用授权并连接窗口':'observe 获取当前窗口；写操作由聊天审批卡确认'})})}
   if(args.action==='list_apps')return await finish({text:JSON.stringify(await mac.rpc('apps'))});
   if(args.action==='open_app'){
@@ -126,6 +135,11 @@ const server=http.createServer(async(req,res)=>{
  if(req.method!=='POST'||req.headers['x-skyrail-token']!==token)return json(res,403,{message:'会话校验失败'});
  try{
  let raw='';for await(const c of req){raw+=c;if(raw.length>64000)throw Object.assign(new Error('消息过长'),{status:413})}const body=JSON.parse(raw||'{}');
+ if(url.pathname==='/v1/desktop/status')return json(res,200,{...await probeDesktop(),...desktop.status()});
+ if(url.pathname==='/v1/desktop/start')return json(res,200,await desktop.start(body.clientId));
+ if(url.pathname==='/v1/desktop/renew')return json(res,200,desktop.renew(body.clientId,body.ticket));
+ if(url.pathname==='/v1/desktop/stop'){desktop.stop(body.clientId,body.ticket);return json(res,200,{ok:true})}
+ if(desktop.active&&['/v1/mac/bind','/v1/mac/observe','/v1/mac/input','/v1/mac/policy','/v1/control','/v1/mac/disconnect'].includes(url.pathname))return json(res,409,{message:'请先断开人工全桌面控制台，再重新连接应用'});
  if(url.pathname==='/v1/connect'){await codex.connect();runtime='connected';res.setHeader('Set-Cookie',`skyrail=${token}; HttpOnly; SameSite=Strict; Path=/v1`);publish();for(const t of threads)if(t.codexId&&!t.deletedAt)void syncNative(t).catch(()=>{});return json(res,200,snapshot())}
  if(url.pathname==='/v1/threads'){const t={id:randomUUID(),title:'新对话',messages:[],status:'idle'};threads.unshift(t);await save();publish();return json(res,200,t)}
  if(url.pathname==='/v1/sessions/list'){
@@ -189,6 +203,7 @@ const server=http.createServer(async(req,res)=>{
  if(t.deletedAt)return json(res,410,{message:'这段对话已移到最近删除，可从历史记录恢复'});
  if(match[2]==='sync'){await syncNative(t);return json(res,200,snapshot())}
  if(match[2]==='stop'){if(mac.state.threadId===t.id)await mac.control(mac.state.epoch,'none');for(const [id,a] of approvals){if(a.threadId===t.id){approvals.delete(id);a.resolve(false)}}await interruptThread(t);return json(res,202,{accepted:true})}
+ if(desktop.active)return json(res,409,{message:'人工全桌面控制期间已暂停新任务，请先断开控制台'});
  if(typeof body.text!=='string'||!body.text.trim()||typeof body.clientMessageId!=='string')return json(res,400,{message:'请输入消息与消息编号'});
  if(t.messages.some(m=>m.id===body.clientMessageId))return json(res,200,t);
  if(['running','submitting','syncing'].includes(t.status))return json(res,409,{message:'请等待当前回复与记录同步结束后再补充'});
@@ -205,6 +220,7 @@ const server=http.createServer(async(req,res)=>{
  await prepareSession(writer,t,{cwd,tools:computerTools,instructions,resumed,save});
  if(!t.nativeNamed&&!t.imported){try{await writer.rpc('thread/name/set',{threadId:t.codexId,name:t.title});t.nativeNamed=true}catch{}}
  const input=[{type:'skill',name:'skyrail-computer-use',path:skillPath},{type:'text',text:body.text}];
+ if(desktop.active)throw Object.assign(Error('人工控制台已打开，新任务已取消；请关闭控制台后再发送'),{status:409});
  turnRequested=true;const r=await writer.rpc('turn/start',{threadId:t.codexId,input,clientUserMessageId:body.clientMessageId});t.turnId=r.turn.id;userMessage.pending=false;
  if(t.status==='submitting')t.status='running';await save();publish();return json(res,202,t);
  }catch(e){
@@ -214,6 +230,7 @@ const server=http.createServer(async(req,res)=>{
  }
  }catch(e){json(res,e.status||500,{message:e.message})}
 });
+server.on('upgrade',(req,socket,head)=>{if(new URL(req.url,`http://${host}`).pathname==='/v1/desktop/socket')desktop.upgrade(req,socket,head,{host,token});else if(!req.headers['sec-websocket-protocol']?.includes('vite-hmr'))rejectUpgrade(socket)});
 let checkingLock=false;
 const lockTimer=setInterval(async()=>{
  if(checkingLock||!clients.size)return;checkingLock=true;
@@ -230,7 +247,7 @@ const lockTimer=setInterval(async()=>{
 },2000);lockTimer.unref();
 server.listen(port,'127.0.0.1',()=>console.log(`Skyrail ready: http://${host}`));
 let closing=false;
-async function close(){if(closing)return;closing=true;clearInterval(lockTimer);power.close();stream.stop();await mac.close();await writers.close();codex.close();historyCodex.close();for(const c of clients)c.end();await vite.close();server.close();process.exit(0)}
+async function close(){if(closing)return;closing=true;clearInterval(lockTimer);desktop.close();power.close();stream.stop();await mac.close();await writers.close();codex.close();historyCodex.close();for(const c of clients)c.end();await vite.close();server.close();process.exit(0)}
 process.on('SIGINT',close);process.on('SIGTERM',close);
 // launchctl can terminate the native wrapper before its Node child. Do not leave
 // an orphan holding the port and the previous macOS permission attribution.
