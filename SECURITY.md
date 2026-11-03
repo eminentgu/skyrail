@@ -1,40 +1,42 @@
+**[Skyrail](README.md) / [Documentation](docs/README.md)**
+
 # Security policy
 
-Skyrail 目前处于 0.x 早期阶段，仅对当前 main 接收修复；没有已审计的稳定版本或商业支持承诺。
+[简体中文](SECURITY.zh-CN.md) · [Setup and permissions](docs/GETTING-STARTED.md)
 
-请勿在公共 Issue 披露可利用细节、远程密码、Cookie、token、聊天或桌面内容。发现漏洞时优先使用仓库 Security 页的 “Report a vulnerability”（若已启用）；入口不可用时先创建不含利用细节的 Issue，请维护者提供私下联系渠道。
+Skyrail is an early 0.x project. Fixes target current main; there is no audited stable release or commercial support commitment.
 
-## 信任边界
+Do not disclose exploitable details, remote passwords, cookies, tokens, conversations or desktop content in public issues. Prefer **Report a vulnerability** on the repository Security page if enabled. If unavailable, open an issue without exploit details asking the maintainer for a private contact route.
 
-- 交给 Codex 时保留 RFB 连接，服务端按协议消息边界阻断人工按键、指针、剪贴板与改屏操作，同时放行画面请求；未完成的包不能跨交接边界执行，已按下的键鼠先释放。恢复人工输入前，先撤销模型窗口连接并等待交接完成。
-- RFB 过滤器只解析握手和客户端消息边界，不解析屏幕图像或重建输入文本。支持当前 Mac 使用的 ARD、标准 VNC 与无认证测试握手；未知认证 / 扩展及超限消息关闭连接。
+## Trust boundaries
 
-- Skyrail 操作真实 Mac。授予系统权限是由本人完成的独立步骤。
-- 人工全桌面独立于模型窗口工具，连接固定指向本机系统屏幕共享，不接受远程主机或端口。整个物理桌面均在共享范围内。
-- 人工控制台的图像、账户认证和键盘输入不进入聊天、模型工具与 session 记录；不提供此通道的截图、剪贴板同步和输入重放。浏览器只在当前连接内持有认证信息，断开后清除引用；不承诺 JavaScript 内存的可验证擦除。
-- 外网 WebSocket upgrade 单独校验访问 Cookie、严格 Origin / Host 和固定路径；本地额外校验会话 Cookie 与随机控制票据。票据放在子协议中，不放在 URL 或日志。人工通道独占，12 秒心跳续约，90 秒失联及 24 小时上限关闭；系统账户认证仍由 macOS 检查。
-- HTTPS 在 Cloudflare 终止，Cloudflare 和本机转发进程均属于人工远控的信任边界；这不是独立端到端加密通道。系统屏幕共享服务的局域网访问范围需由部署者另行配置；项目不公开转发 TCP 5900。
-- “允许全部操作”是本机 Skyrail 的持久权限开关，按用户要求默认开启：会话 start / resume 使用 `approvalPolicy=never` 与 `sandbox=danger-full-access`，turn/start 同步使用 dangerFullAccess。允许访问运行账户可访问的文件、命令和网络；不是只读或隔离环境。仅作用于 Skyrail 子进程，不修改用户全局 Codex 配置。关闭后改为 workspace-write / on-request，并恢复应用操作审批。
-- 关闭全局完整权限时，仍可选择“本次连接允许全部操作”，该授权仅限当前窗口连接；换应用或断开失效。
-- Codex 自身 shell / MCP 配置不构成操作系统级隔离；开发者指令不是沙箱。
-- 默认仅监听 loopback。公网访问需 HTTPS、认证网关和受控 tunnel；不要直接映射 4317。
-- 网关为单用户共享密码，不是多用户身份或权限系统。Cookie 有效期 24 小时，重启失效。
-- `.data/`、任务目录及凭据不得提交。公开仓库不意味着运行实例公开可用。
+- Skyrail operates a real Mac. OS permission grants are a separate step completed by the user. Missing GUI grants do not prevent UI/build/chat-only evaluation.
+- Manual full-desktop control is separate from the model's selected-window tools. Its destination is fixed to local macOS Screen Sharing, not a user-selected remote host or port. The entire desktop is in scope.
+- Manual desktop images, authentication and keyboard input do not enter chat, model tool results or session records. This channel provides no screenshot export, clipboard synchronization or input replay. Browser credential references are released on disconnect; verifiable erasure of JavaScript memory is not promised.
+- When handing control to Codex, the RFB connection stays open while the server blocks manual key, pointer, clipboard and display-changing messages at protocol boundaries. Viewing requests continue. Partial messages cannot cross the handover boundary; held input is released. Resuming manual input first revokes the model window binding and drains the transition.
+- The RFB filter parses handshake and client message boundaries, not screen images or reconstructed input text. It supports the current Mac's ARD, standard VNC and unauthenticated test handshakes. Unknown authentication/extensions or oversized messages close the channel.
+- Remote WebSocket upgrades validate the access cookie, strict Origin/Host and fixed path. Local checks additionally validate the session cookie and a random control ticket, carried in the subprotocol rather than URLs/logs. Manual control is exclusive; the client renews every 12 seconds and the channel closes after 90 seconds without renewal or a 24-hour absolute limit. macOS validates system credentials.
+- HTTPS terminates at the configured proxy (for example Cloudflare when used). That proxy and the local forwarding process are trusted parts of remote control; this is not an independent end-to-end encrypted channel. Configure macOS Screen Sharing's LAN exposure separately. Skyrail does not publicly forward TCP 5900.
+- **Allow all operations** is a persistent setting for this Skyrail instance and is currently on by default. Session start/resume uses `approvalPolicy=never` and `sandbox=danger-full-access`; turns use `dangerFullAccess`. The runtime can use files, commands and networking available to its host account. This is not a read-only or isolated environment. It affects Skyrail child processes, not global Codex configuration. Turning it off selects workspace-write/on-request and restores app-operation approval.
+- With global full access off, an explicit allow-all-for-this-connection grant is limited to the current window connection and ends when changing apps or disconnecting.
+- Codex shell/MCP configuration is not OS-level isolation. Developer instructions are not a sandbox. Control leases govern Skyrail's own routes, not other clients or physical input.
+- Default listeners are loopback-only. Public access needs HTTPS, the authenticated gateway and a controlled tunnel. Never expose service port 4317 directly.
+- The gateway uses a single-owner shared password, not multi-user identities or role management. Cookies expire after 24 hours and on gateway restart.
+- Keep `.data/`, workspaces and credentials out of Git. A public repository does not mean a running instance is public.
 
-第三方依赖、Codex 和 Cloudflare 分别适用各自的许可证及服务条款；项目 MIT 许可不授予这些服务的使用权。
+Third-party dependencies, Codex and any tunnel/proxy provider have their own licenses and service terms. The project's MIT license grants no right to those services.
 
-### Touch input adapter
+## Touch input adapter
 
-The mobile gesture layer maps image-relative coordinates into either the selected native window or the existing local RFB channel. It does not broaden application permissions, connect to another host, or persist cursor/key/credential payloads. noVNC 1.7.0 private pointer encoding is isolated in `desktop-rfb.mjs`; upgrades must rerun the synthetic RFB browser acceptance. Hidden views disable input and hide all remote cursors. Gesture cancellation invalidates queued native input before releasing held buttons; the server lease remains authoritative.
+The gesture layer maps image-relative coordinates into the selected native window or existing local RFB channel. It does not broaden app permissions, select another host or persist cursor/key/credential payloads. noVNC 1.7.0 private pointer encoding is isolated in `desktop-rfb.mjs`; upgrades need synthetic RFB browser acceptance. Hidden views disable input and hide remote cursors. Cancellation invalidates queued native input before releasing held buttons; the server lease remains authoritative.
 
 ## File transfers
 
-All transfer endpoints require the existing authenticated session; uploads additionally require the CSRF session token and strict Host / Origin checks. Uploads stream into unique per-thread private directories under `.data/files`, with a 50 MiB limit, temporary files and atomic completion; failed streams remove their own partial files. Names are rendered as text and downloads use attachment disposition plus nosniff. Files are never executed by the transfer endpoint.
+Transfer endpoints require the authenticated session. Uploads also require the CSRF session token and strict Host/Origin checks. Uploads stream into unique per-thread private directories under `.data/files`, with a 50 MiB limit, temporary files and atomic completion; failed streams remove their partial files. Names are rendered as text, downloads use attachment disposition plus nosniff, and transfer endpoints never execute files.
 
-Project downloads are confined to that conversation's actual working directory; uploaded files are confined to that conversation's upload root. Absolute / parent traversal paths, symlinks resolving outside the root, non-regular files and cross-thread attachments are rejected. Symlink target checks and final O_NOFOLLOW reduce accidental escapes; these paths are not intended as a sandbox against a concurrently malicious local full-access process. The authorized agent already has full host privileges in full-access mode. A remote login can read project files, so this remains a single-owner deployment, not a multi-user isolation system.
+Project downloads are confined to the conversation's actual working directory; uploads to its upload root. Absolute/parent traversal paths, out-of-root symlinks, non-regular files and cross-thread attachments are rejected. Target checks and final O_NOFOLLOW reduce accidental escapes, but are not a sandbox against a concurrently malicious local full-access process. Full-access agents already have host privileges. A remote login can read project files: this is a single-owner deployment, not multi-user isolation.
 
-Attachments are delivered as local file paths to Codex and are retained in conversation metadata. Uploaded contents are task data and never authorize additional actions. Files can contain confidential data; do not publish `.data`, workspaces, uploaded fixtures or session records.
-
+Codex receives attachments as local paths retained in conversation metadata. Uploaded contents are task data, not authorization for additional actions. Do not publish uploads, workspaces or session records.
 
 ## Ending an occupying Codex connection
 
@@ -44,6 +46,11 @@ The local file diagnostic helper is an ordinary command, inherits the active com
 
 ## Image chat
 
+
 Inline previews require the existing authenticated file session and the same resolved conversation roots as downloads. Only signature-recognized PNG / JPEG / WebP / GIF are served inline, with a fixed content type, nosniff, sandbox CSP and no-store. SVG / HTML are rejected even when named `.png`. Browser MIME values and caller-supplied mediaType do not authorize visual input. Image submissions are capped at 20 MiB each; general files retain their 50 MiB limit. Header detection is not a complete image-decoder security boundary; browsers and Codex process the uploaded raster data.
 
 Image bytes are sent to the configured Codex model as native visual input when the user sends the attachment. Uploading alone does not invoke the model. Preview images stay behind the existing owner login; there is no public image-hosting endpoint. Clipboard images and uploaded paths are task data, never permission to act. External Markdown image URLs are not fetched automatically. Native-only imported image paths are not exposed as unrestricted file reads.
+
+---
+
+[Documentation hub](docs/README.md)

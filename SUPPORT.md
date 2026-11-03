@@ -1,97 +1,84 @@
-# 支持与故障排查
+**[Skyrail](README.md) / [Documentation](docs/README.md)**
 
-## 切换或交接后锁屏
+# Support and troubleshooting
 
-对话 / 电脑切页和发送任务现在保留桌面连接；交给 Codex 时仅切为只看画面，回到电脑点“接手操作”恢复人工输入。无需每次断开或重新认证。另一设备占用时可选择“切换到此设备”。
+[简体中文](SUPPORT.zh-CN.md) · [Setup and permissions](docs/GETTING-STARTED.md)
 
-macOS 屏幕共享还可能在真正断开连接后恢复原先的锁屏状态。若希望关闭这项行为，在本机终端执行 `sh scripts/keep-remote-session.sh`，由本人输入管理员密码；该设置需要一次系统授权。脚本仅将 `/Library/Preferences/com.apple.RemoteManagement.plist` 的 `RestoreMachineState` 改为 false，正常手动锁屏、登录密码与空闲锁屏策略独立保留。恢复此行为可用管理员权限将该键设为 true。依据：[Screens 官方说明](https://help.edovia.com/en/screens-5/troubleshooting/log-in-twice-mac/)。
+Run `npm run doctor` first. Missing GUI permissions still allow UI, build, JavaScript and chat-only testing. Report installation issues through [GitHub Issues](https://github.com/eminentgu/skyrail/issues), in English or Chinese. Include the commit/version, macOS, browser/device, target app, reproduction and expected/actual result. Security reports follow [SECURITY.md](SECURITY.md).
 
+## Install or launch fails
 
-## 手机点了没有反应 / 新弹窗点不到
+Use Node.js 22.12+ and finish `npm ci` before running tests or starting the service. For managed-network certificate errors, see the system-CA instructions in the [setup guide](docs/GETTING-STARTED.md). Keep TLS verification enabled.
 
-当前首页使用“连接 Mac”的系统级整桌面通道，直接点按，需输入时点击“输入文字”。本机用户名由服务自动预填；系统登录使用 Mac 密码，网页入口使用 Skyrail 访问密码，两者不同。
+Open `http://127.0.0.1:4317`, not a different hostname. `EADDRINUSE` means another server holds the port: stop your earlier foreground process or identify the existing service first. Do not stop unrelated Node processes. For a separate local test use `PORT=14317 npm run dev` and open that address. For missing Codex, set `CODEX_BIN` to the installed executable. For built-asset mode, run `npm run build` before `SKYRAIL_SERVE_DIST=1 npm start`.
 
-旧版本的所选应用窗口人工输入曾出现接口成功但实际应用无变化，新应用 / 弹窗也可能超出窗口范围。人工主路径已改为整桌面，旧应用工具设置主要用于 Codex 的应用观察和授权，不以它代替整桌面点按。若仍有问题，请区分认证未完成、完整桌面已显示但点按无响应，以及系统登录成功后选中了独立会话。
+## Permissions appear enabled but input fails
 
-安装、使用问题和功能建议通过 [GitHub Issues](https://github.com/eminentgu/skyrail/issues) 提交，可用中文或英文。请提供版本 / commit、macOS、浏览器、目标应用、复现步骤及预期 / 实际行为。安全问题见 [SECURITY.md](SECURITY.md)。
+Check Screen Recording and Accessibility separately. The intended native identity is this checkout's `.data/Skyrail Mac.app`, not the browser. The managed service launches through that native wrapper. Direct development launches may have different permission attribution.
 
-## 权限显示已开，仍无法控制
+An ad-hoc rebuild can invalidate an older permission grant while its Settings entry still appears enabled. Re-add the current app yourself in Privacy & Security and restart. Do not modify privacy databases. If device management prohibits the grant, ask the administrator; use chat-only testing meanwhile. Folder access and Full Disk Access do not substitute for GUI permissions.
 
-1. 在电脑面板刷新权限，分别检查屏幕录制与辅助功能。
-2. 授权对象是项目 `.data/Skyrail Mac.app`，不是浏览器。常驻服务应由此原生程序启动。
-3. 重编译改变临时签名后，旧授权条目可能仍显示开启。需要本人在系统设置移除旧条目，再添加当前程序并开启。
-4. 重启服务后重新连接窗口。锁屏、目标退出、窗口更换时也需先恢复状态。
+## Screen capture is empty or reports -3811
 
-不能通过修改系统隐私数据库来修复授权。稳定签名 / 安装包仍在计划中。
+Check whether the Mac is locked and whether a display is available. Locked sessions pause app input/capture even if permissions still show as granted. A running capture process or heartbeat does not prove frames exist. Skyrail can recover with independent read-only window snapshots; the UI reports actual received frames. Unknown write outcomes are not automatically retried.
 
-## 远程入口登录失败
+Active app capture may wake the physical display. Whole-machine sleep, shutdown, lid constraints and OS lock policy are not bypassed. `SKYRAIL_DISPLAY_MODE=headless` suppresses active display wake but creates no virtual monitor and does not establish closed-lid or screen-off compatibility. Validate that setup separately.
 
-使用运行 Skyrail 的 Mac 上 `.data/remote-access.txt` 中的密码。不要把密码放进 Issue 或截图。入口由你自己的域名和 tunnel 提供；项目不提供公共演示服务。
+## Cannot connect to the whole desktop
 
-刷新根地址后再登录。遇到 `Invalid origin` 请附浏览器版本与是否使用嵌入页面，不要发送 Cookie。密码错误返回 401，尝试过密返回 429。网关重启会使旧登录 Cookie 失效；重新登录即可。502 说明本地 4317 服务未就绪。
+Enable macOS **General → Sharing → Screen Sharing**, restricted to your own account. The gateway login uses the Skyrail password; desktop authentication uses your Mac account. Complete it yourself and choose the existing desktop when offered. A managed Mac may prohibit Screen Sharing. An answering port is not proof of valid authentication or lock-screen input.
 
-## 手机触屏
+Manual control uses the whole-desktop channel because older app-window clicks could report success without changing the app. Check the real visible result. See [manual unlock acceptance](docs/REMOTE-UNLOCK.md).
 
-先人工接管：默认滑动移光标、轻点单击、连点双击、连点后按住拖拽；双指缩放和平移。也可在操作选项切换直接点按。输入文字按钮打开软键盘，提供 Tab、回车和退格；点按不会自动弹键盘。
+## Switching to chat locks or disconnects the Mac
 
-建议横屏或放大工作区。没有 AX 支持的目标控件、跨 Space 的拖拽 / 右键、移动端 IME 仍需逐应用验证。请报告具体设备与目标应用，勿把桌面模拟当成手机真机通过。
+Switching tabs or sending a task should retain the desktop stream. Sending parks manual input; **Take over** restores it without reauthentication. Choose **Disconnect** to end the connection explicitly. Another client can occupy the manual control lease.
 
-## 连接和后台服务
+macOS may restore the original lock state after a real Screen Sharing disconnect. The optional `scripts/keep-remote-session.sh` changes the system `RestoreMachineState` preference and requires administrator authorization; review it before using it. It is not needed for normal evaluation and can conflict with organizational policy. Restore the preference to `true` with administrator authorization to reverse it. [Vendor explanation](https://help.edovia.com/en/screens-5/troubleshooting/log-in-twice-mac/).
 
-本地入口 `http://127.0.0.1:4317`；带登录的反向代理在 loopback 4318。常驻服务日志位于 `.data/local.skyrail.{service,gateway}.{out,err}.log`，分享前必须脱敏。不要直接将 4317 暴露到公网。
+## Phone input or new dialogs do not respond
 
-系统休眠、锁屏或注销会影响串流。这个项目当前使用开发服务器，没有高可用保证。无需重装依赖来处理每次断流：先重连窗口，再检查权限与目标是否仍存在。
+Use **Take over** first. Default gestures: slide to move the pointer, tap to click, double-tap to double-click, double-tap and hold to drag, and two fingers to zoom/pan. Direct targeting is optional. **Input text** opens the keyboard, including Tab, Return, Backspace and Esc; tapping the display does not automatically open it.
 
-## 熄屏、睡眠与 -3811
+Use the whole desktop for new apps and system dialogs. A selected-app view is limited to its chosen window; select a new independent window from the list. Report real device/OS/browser and IME behavior. Simulated touches do not prove real-phone compatibility.
 
-整机进入睡眠后，运行在这台 Mac 上的 tunnel、模型与采集程序不能继续正常执行。Skyrail 在有远程画面或模型任务时临时保持系统运行，结束后释放。默认也会唤醒并保持显示器，以提供 macOS 窗口渲染所需的活动显示设备；这意味着物理屏幕可能亮起，不是静默熄屏模式。
+## Remote login fails
 
-本机已复现系统光标采集引发 -3811，已关闭该路径。若系统没有可用显示器，界面明确提示显示器状态，不再当作辅助功能缺权。主动锁屏、关机、强制睡眠与合盖限制不会被绕过。
+Read `.data/remote-access.txt` on the host; do not share its contents. The project provides no public demo. Expose gateway 4318 via your own HTTPS tunnel, never service 4317. Refresh the root URL before logging in. `401` means invalid/missing authentication, `429` means rate limiting, and `502` usually means the local service is unavailable. Restarting the gateway invalidates sessions. For `Invalid origin`, report browser and embedding/proxy setup without cookies. See [operation guide](docs/REMOTE-ACCESS.md).
 
-如需物理屏幕保持关闭，应另行验证独立虚拟显示器，并为服务设置 `SKYRAIL_DISPLAY_MODE=headless`。该选项只禁用主动亮屏，不会创建虚拟屏幕，也不能保证所有 Mac 的合盖 / 熄屏兼容。
+## A synchronized Codex session cannot continue
 
-## 权限正常但 Codex 读不到控件 / 画面不更新
+The same native session permits one writer. Finish and release it in the other client first. Alternatively, choose **检查占用连接** (inspect the occupying connection), review the affected session count, and explicitly confirm **确认结束占用并连接原会话** (end the owner and reconnect). This ends the actual owning Codex background process, including other tasks sharing it. Records and drafts remain; Skyrail does not delete lock files, create replacement sessions or automatically resend the draft. If ownership changes, inspect again. Skyrail closes its writer after each completed turn, retaining a read-only history connection. Copy the ID and use `codex resume <SESSION_ID>` in another client after release. Imported sessions retain their original tool configuration; history sync does not copy host-specific tools.
 
-先查看“Mac 已锁屏”状态。锁屏时，系统可能仍报告两项权限正常，却只返回菜单、空的窗口树或旧画面。Skyrail 的锁屏检测独立于录屏与辅助功能授权；检测到锁屏会暂停输入、撤销窗口连接，避免把已启动的采集进程当作可用画面。电脑面板现在提供“人工解锁”入口，通过独立全桌面连接输入密码；首次需本人在 Mac 开启系统屏幕共享。完成后返回并重新选择应用。详见 [使用方法与验收边界](docs/REMOTE-UNLOCK.md)。
+## Commands or files are denied
 
-原生视频进程启动后约 1.5 秒仍无帧，或返回采集错误时，会尝试由另一个只读进程持续获取该窗口画面。回退目标上限 5 帧/秒，实际速度取决于窗口和 AX 读取开销；它不会修改模型的元素编号，也不会重试任何写操作。界面帧率来自实际收到的帧。
+Check **Allow all operations** in composer settings. Change it only when tasks are idle; the next task resumes the same session with the selected policy. `EPERM` / `Operation not permitted` can mean macOS folder restrictions, even in full access. The managed service accesses files as `.data/Skyrail Mac.app`, whose grants are separate from Codex or Terminal. Grant only the required directory permission, or Full Disk Access when needed for your chosen files, then restart the service. Full Disk Access is optional and cannot replace administrator rights or system GUI permissions.
 
-## 会话已同步，为什么另一端不能继续？
+## Uploads and downloads
 
-本机 Codex 存储对一个 session 只允许一个写入者。取消订阅可能仍保留原进程一段时间。Skyrail 每轮完成后会关闭自己的会话写入进程；只读历史连接继续保留。同一 ID 在两个客户端交替使用时，应先让原客户端释放连接。若桌面 / CLI 客户端仍持有写入锁，点击“检查占用连接”，查看客户端及受影响会话数量，再点“确认结束占用并连接原会话”。这会结束实际持有锁的 Codex 后台进程；共享该进程的其他会话和运行任务也会断开，记录保留。Skyrail 不删除锁文件、不另建替代会话，也不自动重发草稿。若占用者已变化，请重新检查。
+Use the folder button to upload files or attach workspace files. The per-file upload limit is 50 MiB; interrupted uploads are cleaned up and same-name uploads are isolated. Refresh project outputs before downloading, or use the generated file links in replies. Test with synthetic files first. Browser automation's file-URL setting is not required for a user's normal file picker.
 
-会话上方可复制 ID，在已安装的 Codex CLI 中用 `codex resume <SESSION_ID>` 继续。导入保留原会话的工具配置，不保证任意旧会话都包含 Skyrail 的电脑工具。记录同步不是同时操作桌面的协作协议。
+Logs live in `.data/`; remove credentials, cookies, private paths and conversation content before sharing. Do not attach `.data/`, `workspaces/`, personal desktop captures or full raw diagnostics to a public issue.
 
-## 命令行或桌面文件被拦住
+## Local files stop responding
 
-打开对话输入框旁的设置，检查“允许全部操作”。默认开启，全局工作区 / 审批设置只作用于 Skyrail 任务；旧 Codex 会话仍以原 ID 继续，下次任务使用新设置。执行中需先停止任务再切换，避免权限状态与运行中的命令不一致。
+Distinguish approval denial, macOS EPERM and storage timeouts. Full access does not grant macOS privacy permission or fix a stalled cloud-file provider. A Spotlight miss does not prove a file is absent.
 
-常驻服务的文件访问归属于 `.data/Skyrail Mac.app`，与 Codex / Terminal 的授权不同。在完全磁盘访问中为该应用授权后重启服务。若系统返回 EPERM / Operation not permitted，检查 macOS 隐私权限；完整模式不能代替系统授权或管理员权限。设置面板可打开 macOS 完全磁盘访问页面。另一个 Codex 客户端占用 session 与权限问题不同，需先释放原执行连接。
-
-## 文件上传与下载
-
-输入框的文件夹按钮打开文件管理，上传文件会自动加入待发送消息，也可将现有项目文件添加为附件。上传文件单个上限 50 MB；取消或断网不会保留半成品。当前项目中的结果可刷新后下载，回复中的项目文件链接也可直接下载。新对话可以直接上传；导入 Codex 会话的文件范围是其真实工作目录。
-
-桌面浏览器自动化扩展的“Allow access to file URLs”只影响自动测试选择本地文件，不影响用户手动选文件。上传失败后可重试；同名文件使用独立目录，不覆盖之前的文件。
-
-
-## 桌面文件读取一直无响应
-
-先区分审批拒绝、macOS EPERM 与存储超时，不能把所有问题归为“权限不够”。允许全部操作不代替 macOS 隐私授权，也不能修复云盘提供程序卡顿。Spotlight 索引未命中不证明文件不存在。
-
-内置技能提供有 8 秒上限的文件检查（在当前命令权限下执行）：
+The built-in skill can run bounded file checks under the current command permissions:
 
 ```sh
-node scripts/local-files.mjs find '反馈3723' "$HOME/Desktop"
+node scripts/local-files.mjs find 'filename keyword' "$HOME/Desktop"
 node scripts/local-files.mjs probe '/absolute/path/to/document.docx'
 ```
 
-定位仅扫描指定目录一层，最多 2000 项 / 30 个候选；近似数字匹配明确标记为候选。超时返回 `complete:false`，停止该次检查，不持续重复启动扫描。`probe` 只读取文件头，不能证明已读取 Word 正文或批注；正文提取也应设置独立超时。仍不可读时，可检查 iCloud 文件下载状态、系统隐私授权，或选择上传副本。
+Each check has an eight-second deadline. Discovery scans one directory level, at most 2,000 entries and 30 candidates; numeric fallback matches are labeled as candidates. A timeout returns `complete:false`; stop rather than launch repeated scans. `probe` reads only the file header, not Word body text or comments. Text extraction needs its own deadline. Check cloud download state and privacy grants, or upload a copy if needed.
 
-## 图片聊天
+## Image chat
 
-点输入框“添加图片”，或在输入框粘贴截图、拖入图片；手机可从系统图片选择器选图。上传后出现缩略图，再输入问题发送。可只发图片；多张图片与文字可以同发。点击消息图片看大图，也可下载原图。上传中可取消，切换对话会停止原对话的上传；上传未完成时不能发送。
+Use **添加图片** (add image), paste a screenshot into the composer, or drop files into the conversation. Thumbnails appear before sending; click a sent image to open a larger preview or download the original. Images can be sent alone, together or with text. Uploads show progress and can be cancelled; switching conversations stops the previous upload. Send is disabled until uploads finish.
 
-直接识图支持 PNG、JPEG、WebP、GIF，单张最多 20 MB，每条最多 20 个附件；GIF 不作为视频理解。HEIC / SVG 等格式作为普通文件处理，需转为 PNG / JPEG 才能直接看图。预览异常可下载核对；上传成功与模型已识图是不同步骤。由 Skyrail 发送的图片元数据会随记录同步保留；仅从原生 Codex 导入、没有 Skyrail 附件元数据的旧图片目前仍显示图片占位。
+PNG, JPEG, WebP and GIF are delivered as native visual input, with a 20 MiB limit per image and 20 total attachments per message. GIF is not treated as video. Convert HEIC / SVG to PNG or JPEG for direct vision; those unsupported formats remain ordinary files. Skyrail-sent image metadata survives history synchronization. Imported native-only images without Skyrail metadata still show an image marker. Browser automation's file-URL permission does not affect the normal system image picker or clipboard paste.
 
-Chrome 扩展“Allow access to file URLs”只限制自动化测试选择本地文件；用户通过系统选择器手动选图或粘贴不依赖该测试权限。
+---
+
+[Documentation hub](docs/README.md)
