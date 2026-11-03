@@ -53,6 +53,8 @@
   </tr>
 </table>
 
+**Image chat:** select a picture, paste a screenshot, or drop files into the conversation. Preview before sending and open sent images at a larger size. PNG / JPEG / WebP / GIF reach Codex as native visual input (20 MiB per image; general files remain 50 MiB). [Image help](SUPPORT.md#image-chat).
+
 Skyrail does not include a model subscription or bundle the desktop app’s private computer-use engine.
 
 ## Try it locally

@@ -73,6 +73,12 @@ node scripts/local-files.mjs probe '/absolute/path/to/document.docx'
 
 Each check has an eight-second deadline. Discovery scans one directory level, at most 2,000 entries and 30 candidates; numeric fallback matches are labeled as candidates. A timeout returns `complete:false`; stop rather than launch repeated scans. `probe` reads only the file header, not Word body text or comments. Text extraction needs its own deadline. Check cloud download state and privacy grants, or upload a copy if needed.
 
+## Image chat
+
+Use **添加图片** (add image), paste a screenshot into the composer, or drop files into the conversation. Thumbnails appear before sending; click a sent image to open a larger preview or download the original. Images can be sent alone, together or with text. Uploads show progress and can be cancelled; switching conversations stops the previous upload. Send is disabled until uploads finish.
+
+PNG, JPEG, WebP and GIF are delivered as native visual input, with a 20 MiB limit per image and 20 total attachments per message. GIF is not treated as video. Convert HEIC / SVG to PNG or JPEG for direct vision; those unsupported formats remain ordinary files. Skyrail-sent image metadata survives history synchronization. Imported native-only images without Skyrail metadata still show an image marker. Browser automation's file-URL permission does not affect the normal system image picker or clipboard paste.
+
 ---
 
 [Documentation hub](docs/README.md)

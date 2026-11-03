@@ -1,5 +1,6 @@
 import React from "react";
 type Name =
+  | "image"
   | "file"
   | "folder"
   | "download"
@@ -68,6 +69,13 @@ const paths: Record<Name, React.ReactNode> = {
     </>
   ),
   expand: <path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" />,
+  image: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <circle cx="8" cy="8" r="1.5" />
+      <path d="m3 16 5-5 4 4 4-6 5 7" />
+    </>
+  ),
   settings: (
     <>
       <path d="M4 6h16M4 12h16M4 18h16" />

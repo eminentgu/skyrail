@@ -44,6 +44,13 @@ An authenticated Skyrail owner can explicitly end the Codex app-server process h
 
 The local file diagnostic helper is an ordinary command, inherits the active command sandbox and cannot grant TCC access. Its deadline kills its own disposable worker only. User filenames are passed as JSON arguments without shell evaluation; no GUI automation or permission bypass is added.
 
+## Image chat
+
+
+Inline previews require the existing authenticated file session and the same resolved conversation roots as downloads. Only signature-recognized PNG / JPEG / WebP / GIF are served inline, with a fixed content type, nosniff, sandbox CSP and no-store. SVG / HTML are rejected even when named `.png`. Browser MIME values and caller-supplied mediaType do not authorize visual input. Image submissions are capped at 20 MiB each; general files retain their 50 MiB limit. Header detection is not a complete image-decoder security boundary; browsers and Codex process the uploaded raster data.
+
+Image bytes are sent to the configured Codex model as native visual input when the user sends the attachment. Uploading alone does not invoke the model. Preview images stay behind the existing owner login; there is no public image-hosting endpoint. Clipboard images and uploaded paths are task data, never permission to act. External Markdown image URLs are not fetched automatically. Native-only imported image paths are not exposed as unrestricted file reads.
+
 ---
 
 [Documentation hub](docs/README.md)

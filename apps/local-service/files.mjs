@@ -4,6 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { imageType, MAX_IMAGE } from "../../packages/codex/attachments.mjs";
 export const MAX_UPLOAD = 50 * 1024 * 1024;
 const fail = (message, status = 400) =>
   Object.assign(Error(message), { status });
@@ -133,7 +134,15 @@ export class ThreadFiles {
       });
       await pipeline(source, bounded, handle.createWriteStream());
       await rename(tmp, destination);
-      return { root: "uploads", path: id + "/" + name, name, size };
+      const previewHandle = await open(destination, "r");
+      let mediaType;
+      try {
+        mediaType = await imageType(previewHandle);
+      } finally {
+        await previewHandle.close();
+      }
+      if (mediaType && size > MAX_IMAGE) throw fail("单张图片最多 20 MB", 413);
+      return { root: "uploads", path: id + "/" + name, name, size, mediaType };
     } catch (e) {
       await rm(folder, { recursive: true, force: true });
       throw e;
@@ -171,7 +180,11 @@ export class ThreadFiles {
       try {
         const stat = await handle.stat();
         if (!stat.isFile()) throw fail("附件必须是普通文件");
+        const mediaType = await imageType(handle);
+        if (mediaType && stat.size > MAX_IMAGE)
+          throw fail("单张图片最多 20 MB", 413);
         result.push({
+          mediaType,
           root: item.root,
           path: item.path,
           name: path.basename(target),
