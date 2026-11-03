@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
+import { FilesPanel, type Attachment } from "./FilesPanel";
+import { PermissionSettings } from "./PermissionSettings";
 import {
   Conversation,
   type ChatMessage,
@@ -16,12 +18,14 @@ type Thread = {
   messages: Message[];
   status: string;
   error?: string;
+  cwd?: string;
   codexId?: string;
   imported?: boolean;
   syncedAt?: string;
   syncError?: string;
 };
 type State = {
+  permissions?: { fullAccess: boolean };
   desktop?: { active: boolean };
   threads: Thread[];
   deletedThreads?: { id: string; title: string; deletedAt: string }[];
@@ -52,6 +56,13 @@ function App() {
     [guide, showGuide] = useState(false),
     [deletedId, setDeletedId] = useState(""),
     [copied, setCopied] = useState(false);
+  const [filesOpen, showFiles] = useState(false),
+    [attachments, setAttachments] = useState<Attachment[]>([]);
+  const selectedRef = React.useRef(selected);
+  selectedRef.current = selected;
+  useEffect(() => {
+    setAttachments([]);
+  }, [selected]);
   const stopDesktop = React.useRef<() => Promise<void>>(async () => {});
   const [applicationTools, setApplicationTools] = useState(0);
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
@@ -263,9 +274,15 @@ function App() {
     });
   }
   async function send() {
-    if (!text.trim() || running || busy || state.runtime !== "connected")
+    if (
+      (!text.trim() && !attachments.length) ||
+      running ||
+      busy ||
+      state.runtime !== "connected"
+    )
       return;
     const value = text;
+    const attached = attachments;
     await act(async () => {
       if (state.desktop?.active) await stopDesktop.current();
       const id = selected || (await create());
@@ -273,8 +290,10 @@ function App() {
         setText("");
         await post(`threads/${id}/messages`, {
           text: value,
+          attachments: attached.map(({ root, path }) => ({ root, path })),
           clientMessageId: crypto.randomUUID(),
         });
+        setAttachments([]);
       } catch (e) {
         setText(value);
         throw e;
@@ -481,6 +500,12 @@ function App() {
                   <Icon name="close" size={16} />
                 </button>
               </div>
+              <PermissionSettings
+                fullAccess={state.permissions?.fullAccess !== false}
+                busy={running || busy}
+                post={post}
+                onSnapshot={setState}
+              />
               <p>
                 例如“打开计算器，计算 2 的 10
                 次方”。允许应用访问后，可查看画面或随时接管。
@@ -584,6 +609,8 @@ function App() {
               </div>
             ) : (
               <Conversation
+                threadId={selected}
+                cwd={thread?.cwd}
                 messages={thread.messages}
                 approvals={(state.approvals || []).filter(
                   (a) => a.threadId === selected,
@@ -612,6 +639,24 @@ function App() {
             )}
           </div>
           <div className="composer-area">
+            {attachments.length > 0 && (
+              <div className="draft-files" aria-label="待发送文件">
+                {attachments.map((file) => (
+                  <span key={file.root + file.path}>
+                    <Icon name="file" size={16} />
+                    {file.name}
+                    <button
+                      aria-label={"移除附件：" + file.name}
+                      onClick={() =>
+                        setAttachments((a) => a.filter((f) => f !== file))
+                      }
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             {error && (
               <div className="error" role="alert">
                 {error}
@@ -663,6 +708,15 @@ function App() {
                 }}
               />
               <div className="composer-tools">
+                <button
+                  className="composer-files"
+                  type="button"
+                  aria-label="文件上传与下载"
+                  title="文件上传与下载"
+                  onClick={() => showFiles(true)}
+                >
+                  <Icon name="folder" size={18} />
+                </button>
                 <span className="composer-context">
                   <span
                     className={
@@ -676,9 +730,14 @@ function App() {
                   className="composer-guide"
                   type="button"
                   onClick={() => showGuide(!guide)}
-                  aria-label="电脑操作设置"
+                  aria-label="权限与电脑设置"
                 >
                   <Icon name="settings" size={16} />
+                  <span className="permission-mode-label">
+                    {state.permissions?.fullAccess === false
+                      ? "按需确认"
+                      : "全部允许"}
+                  </span>
                 </button>
                 <span className="keyboard-shortcut">↵ 发送</span>
                 {syncing ? (
@@ -708,7 +767,9 @@ function App() {
                       state.desktop?.active ? "send handoff-send" : "send"
                     }
                     disabled={
-                      busy || !text.trim() || state.runtime !== "connected"
+                      busy ||
+                      (!text.trim() && !attachments.length) ||
+                      state.runtime !== "connected"
                     }
                     aria-label="发送消息"
                   >
@@ -747,6 +808,7 @@ function App() {
               switchThread={selectThread}
               visible={panel}
               applicationTools={applicationTools}
+              fullAccess={state.permissions?.fullAccess !== false}
               onStopReady={(fn) => {
                 stopDesktop.current = fn;
               }}
@@ -758,6 +820,22 @@ function App() {
           )}
         </div>
       </main>
+      {filesOpen && (
+        <FilesPanel
+          selected={selected}
+          token={token}
+          ensureThread={async () => selectedRef.current || (await create())}
+          close={() => showFiles(false)}
+          attach={(file) => {
+            if (selectedRef.current === file.threadId)
+              setAttachments((a) =>
+                a.some((f) => f.path === file.path && f.root === file.root)
+                  ? a
+                  : [...a, file],
+              );
+          }}
+        />
+      )}
       <nav className="mobile-nav" aria-label="手机导航">
         <button
           aria-current={!panel ? "page" : undefined}

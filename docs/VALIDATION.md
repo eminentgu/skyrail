@@ -1,5 +1,15 @@
 # 验证记录
 
+## 2026-11-03：默认完整权限与文件传输
+
+- 构建及 94 项测试通过。新增覆盖权限持久化、同 session 变更权限、typed approval 分发、原生历史附件保留、Unicode 二进制上传、同名隔离、超限 / 中断清理、目录越界、跨对话附件与符号链接。
+- 本机服务协议 9。默认 fullAccess=true；权限设置保存后仍为 true，start / resume 使用 never + danger-full-access，turn/start 明确设置 dangerFullAccess，未修改用户全局 Codex 配置。
+- **真实 Codex 轮次**通过当前 Skyrail UI 提交：读取 90 字节上传附件，原样写出项目 `skyrail-transfer-result.txt`，在 Desktop 创建专用测试文件、读回比对并删除。原生 commandExecution exitCode=0，实际 stdout 包含 project_verified=true、desktop_write=true、desktop_readback_match=true、desktop_test_file_deleted=true。
+- 从对话中点击真实下载链接，Chrome 保存到 Downloads。读取浏览器下载文件与原上传内容、项目生成文件逐字节一致。任务完成后的原生历史同步仍保留附件元数据及下载链接。
+- 外网 `skyrail.eminentgu.top` 已验证登录 303、bootstrap 200、二进制上传 201、项目文件下载 200，下载内容与原上传一致。
+- 上传使用真实二进制接口，201；无会话访问返回 403，父目录越界请求返回 400。界面文件选择器已成功触发，但当前 ChatGPT Chrome 扩展未启用 Allow access to file URLs，因此自动化选择本地文件未完成；不将接口成功声称为自动化 picker.setFiles 成功。用户手动文件选择入口仍可使用。
+- 手机 390×844 与 320×568 的文件抽屉、上传 / 下载 / 添加消息按钮与默认已开启的权限开关已检查；320px 页面无横向溢出。macOS 系统授权状态与 Skyrail 任务权限分开显示。
+
 ## 2026-11-01：单应用选择与手机触控板
 
 - 构建与 82 项测试通过。新增手势状态机覆盖：移动不按下按钮、触控板与直接点按坐标、双击、连点拖拽、第二指取消拖拽、缩放后抬指不点击、点按紧接双指缩放不误触、手势取消、光标边界和缩放 / 平移边界。

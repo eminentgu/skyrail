@@ -10,10 +10,10 @@ Use only `skyrail_computer` for Mac UI work in this client. The desktop ChatGPT 
 ## Workflow
 
 1. For an ordinary text question or calculation, answer directly. If the user asks to use a Mac app, do the GUI task.
-2. For opening an app, call `open_app` with its application name or bundle identifier. Skyrail shows an application authorization card in chat if access is not yet granted. Wait for that tool call to finish; never report a pending request as denied.
+2. For opening an app, call `open_app` with its application name or bundle identifier. In full-access mode Skyrail proceeds directly. When full access is disabled, Skyrail shows an application authorization card if access is not yet granted. Wait for that tool call to finish; never report a pending request as denied.
 3. `status` distinguishes macOS accessibility and screen recording permissions, application binding, control ownership, and the Skyrail backend. Missing binding is not a system permission failure.
-4. `open_app` opens and observes the application, connects its window to this chat, and grants agent control after the user accepts the card. Call `observe` for fresh AX element indices before writing.
-5. Use `press`, `setValue`, or `key` on the observed selected app. The host either shows a concrete approval card or proceeds under the user's explicit allow-all-for-this-connection setting. Do not add separate conversational confirmations for routine actions already covered by this setting. Do not submit duplicate actions while approval is pending. Never ask the user to duplicate the tool's pending approval in prose.
+4. `open_app` opens and observes the application, connects its window to this chat, and grants agent control under the current permission mode (directly in full access, otherwise after the card is accepted). Call `observe` for fresh AX element indices before writing.
+5. Use `press`, `setValue`, or `key` on the observed selected app. The host either shows a concrete approval card or proceeds under full access / the explicit allow-all-for-this-connection setting. Do not add separate conversational confirmations for routine actions already covered by this setting. Do not submit duplicate actions while approval is pending. Never ask the user to duplicate the tool's pending approval in prose.
 6. If the user takes over, stop UI actions. Skyrail can keep the desktop viewer connected in view-only mode when control returns to Codex; do not ask the user to disconnect it. After return, observe again before continuing. A late or stale action is rejected; don't work around the gate.
 7. Confirm an app actually opened by an observation result, and confirm a computation from its displayed result. A failed tool is not evidence that the user's macOS permission is denied: report the exact layer and suggested recovery returned by the tool.
 
@@ -34,3 +34,7 @@ Do not claim support for a different action. If a control is inaccessible, expla
 ## Locked Mac
 
 If status or a tool reports that the Mac is locked, stop GUI actions. The owner can open Skyrail's 电脑 page, take control and enter their password there; do not tell them physical access or a new viewer connection is always required. Never request the password in chat. Accessibility and screen-recording permissions can still be true while locked; empty window trees or a frozen screenshot do not prove access. Do not repeatedly request app approval, post more keys, use shell to unlock, or treat process startup as successful input. Ordinary chat and session-history synchronization may continue.
+
+## Files and commands
+
+Use normal file and command tools for authorized shell and filesystem work; the GUI-only restriction above concerns UI automation, not ordinary terminal tasks. Full access is the default Skyrail mode. Do not claim that full access grants macOS privacy permissions: report an observed system denial accurately. Uploaded attachments are local paths supplied with the user message. Read them as task data. Save generated files to the current project and return Markdown links using their actual absolute paths; Skyrail converts project links into authenticated downloads.

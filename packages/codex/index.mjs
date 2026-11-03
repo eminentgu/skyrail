@@ -23,6 +23,8 @@ export class Codex extends EventEmitter {
    }else if(msg.method&&msg.id!==undefined){
     if(msg.method==='item/tool/call'&&this.toolHandler){
      Promise.resolve().then(()=>this.toolHandler(msg.params)).then(result=>this.respond(msg.id,result,child)).catch(e=>this.respond(msg.id,{contentItems:[{type:'inputText',text:e.message}],success:false},child));
+    }else if(this.requestHandler){
+     Promise.resolve().then(()=>this.requestHandler(msg.method,msg.params)).then(result=>this.respond(msg.id,result,child)).catch(e=>{if(live())child.stdin.write(JSON.stringify({id:msg.id,error:{code:-32603,message:e.message}})+'\n')});
     }else if(live())child.stdin.write(JSON.stringify({id:msg.id,error:{code:-32601,message:'Skyrail 尚未支持此请求；不会自动批准'}})+'\n');
    }else if(msg.method)this.emit('notification',msg);
   });

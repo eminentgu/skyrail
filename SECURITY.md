@@ -14,7 +14,8 @@ Skyrail 目前处于 0.x 早期阶段，仅对当前 main 接收修复；没有�
 - 人工控制台的图像、账户认证和键盘输入不进入聊天、模型工具与 session 记录；不提供此通道的截图、剪贴板同步和输入重放。浏览器只在当前连接内持有认证信息，断开后清除引用；不承诺 JavaScript 内存的可验证擦除。
 - 外网 WebSocket upgrade 单独校验访问 Cookie、严格 Origin / Host 和固定路径；本地额外校验会话 Cookie 与随机控制票据。票据放在子协议中，不放在 URL 或日志。人工通道独占，12 秒心跳续约，90 秒失联及 24 小时上限关闭；系统账户认证仍由 macOS 检查。
 - HTTPS 在 Cloudflare 终止，Cloudflare 和本机转发进程均属于人工远控的信任边界；这不是独立端到端加密通道。系统屏幕共享服务的局域网访问范围需由部署者另行配置；项目不公开转发 TCP 5900。
-- “本次连接允许全部操作”只对当前窗口连接生效。
+- “允许全部操作”是本机 Skyrail 的持久权限开关，按用户要求默认开启：会话 start / resume 使用 `approvalPolicy=never` 与 `sandbox=danger-full-access`，turn/start 同步使用 dangerFullAccess。允许访问运行账户可访问的文件、命令和网络；不是只读或隔离环境。仅作用于 Skyrail 子进程，不修改用户全局 Codex 配置。关闭后改为 workspace-write / on-request，并恢复应用操作审批。
+- 关闭全局完整权限时，仍可选择“本次连接允许全部操作”，该授权仅限当前窗口连接；换应用或断开失效。
 - Codex 自身 shell / MCP 配置不构成操作系统级隔离；开发者指令不是沙箱。
 - 默认仅监听 loopback。公网访问需 HTTPS、认证网关和受控 tunnel；不要直接映射 4317。
 - 网关为单用户共享密码，不是多用户身份或权限系统。Cookie 有效期 24 小时，重启失效。
@@ -25,3 +26,11 @@ Skyrail 目前处于 0.x 早期阶段，仅对当前 main 接收修复；没有�
 ### Touch input adapter
 
 The mobile gesture layer maps image-relative coordinates into either the selected native window or the existing local RFB channel. It does not broaden application permissions, connect to another host, or persist cursor/key/credential payloads. noVNC 1.7.0 private pointer encoding is isolated in `desktop-rfb.mjs`; upgrades must rerun the synthetic RFB browser acceptance. Hidden views disable input and hide all remote cursors. Gesture cancellation invalidates queued native input before releasing held buttons; the server lease remains authoritative.
+
+## File transfers
+
+All transfer endpoints require the existing authenticated session; uploads additionally require the CSRF session token and strict Host / Origin checks. Uploads stream into unique per-thread private directories under `.data/files`, with a 50 MiB limit, temporary files and atomic completion; failed streams remove their own partial files. Names are rendered as text and downloads use attachment disposition plus nosniff. Files are never executed by the transfer endpoint.
+
+Project downloads are confined to that conversation's actual working directory; uploaded files are confined to that conversation's upload root. Absolute / parent traversal paths, symlinks resolving outside the root, non-regular files and cross-thread attachments are rejected. Symlink target checks and final O_NOFOLLOW reduce accidental escapes; these paths are not intended as a sandbox against a concurrently malicious local full-access process. The authorized agent already has full host privileges in full-access mode. A remote login can read project files, so this remains a single-owner deployment, not a multi-user isolation system.
+
+Attachments are delivered as local file paths to Codex and are retained in conversation metadata. Uploaded contents are task data and never authorize additional actions. Files can contain confidential data; do not publish `.data`, workspaces, uploaded fixtures or session records.

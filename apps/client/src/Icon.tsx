@@ -1,5 +1,8 @@
 import React from "react";
 type Name =
+  | "file"
+  | "folder"
+  | "download"
   | "chat"
   | "monitor"
   | "history"
@@ -20,6 +23,14 @@ type Name =
   | "trash"
   | "back";
 const paths: Record<Name, React.ReactNode> = {
+  file: (
+    <>
+      <path d="M6 3h8l4 4v14H6Z" />
+      <path d="M14 3v5h4M9 12h6M9 16h6" />
+    </>
+  ),
+  folder: <path d="M3 6h7l2 3h9v12H3Z" />,
+  download: <path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4" />,
   chat: <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-3 3V11.5a9 9 0 0 1 18 0Z" />,
   monitor: (
     <>

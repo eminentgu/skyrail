@@ -3224,3 +3224,50 @@ main.split {
 .app-touch-controls > .primary {white-space:nowrap;flex-shrink:0;padding-inline:12px;font-size:12px;}
 .app-touch-controls > span {flex:1;min-width:0;}
 .app-touch-controls > .desktop-menu {flex-shrink:0;}
+
+/* Files and permissions stay within the two-view Hark workspace. */
+.permission-settings {display:grid;gap:12px;padding:16px 0;border-block:1px solid var(--line);margin:10px 0 16px;}
+.full-access-toggle {display:flex;justify-content:space-between;align-items:center;gap:20px;cursor:pointer;}
+.full-access-toggle > span {display:grid;gap:5px;}
+.full-access-toggle strong {font-size:15px;}
+.full-access-toggle small,.permission-settings p,.permission-settings > small {font-size:12px;line-height:1.7;color:var(--muted);margin:0;}
+.full-access-toggle input {appearance:none;width:48px;height:28px;border:0;border-radius:20px;background:#8194a0;position:relative;flex-shrink:0;cursor:pointer;}
+.full-access-toggle input::after {content:"";position:absolute;left:4px;top:4px;width:20px;height:20px;border-radius:50%;background:#f8fcff;transition:transform .16s ease;}
+.full-access-toggle input:checked {background:var(--accent);}
+.full-access-toggle input:checked::after {transform:translateX(20px);}
+.full-access-toggle input:disabled {opacity:.5;cursor:wait;}
+.system-permissions {display:flex;gap:16px;flex-wrap:wrap;font-size:12px;}
+.permission-settings > button {justify-self:start;min-height:44px;}
+.chat-guide {max-height:min(65dvh,520px);overflow-y:auto;}
+.composer-files {min-width:44px;min-height:44px;display:grid;place-items:center;border:0;background:transparent;}
+.draft-files,.message-files {display:flex;gap:8px;flex-wrap:wrap;}
+.draft-files {padding:8px 16px;}
+.draft-files > span,.message-files a {display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:12px;max-width:100%;overflow-wrap:anywhere;}
+.draft-files button {padding:4px;min-height:28px;display:grid;place-items:center;}
+.message-files {margin:12px 0;}
+.message-files a {text-decoration:none;min-height:44px;}
+.files-sheet {display:flex;flex-direction:column;gap:14px;background:var(--surface);}
+.files-upload {padding:12px;border:1px dashed var(--line);border-radius:16px;display:grid;gap:10px;}
+.files-upload .primary {display:flex;justify-content:center;align-items:center;gap:8px;min-height:44px;}
+.files-upload small,.files-upload [role="status"],.files-footnote {font-size:12px;line-height:1.7;color:var(--muted);}
+.files-tabs {display:flex;gap:4px;}
+.files-tabs button {flex:1;min-height:44px;background:transparent;}
+.files-tabs button[aria-selected="true"] {background:var(--paper);color:var(--accent);}
+.files-path {display:flex;align-items:center;gap:8px;}
+.files-path > span {min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;}
+.files-path button {min-height:44px;}
+.files-list {min-height:0;flex:1;overflow-y:auto;}
+.files-list > p {font-size:13px;line-height:1.8;color:var(--muted);padding:16px 4px;}
+.file-row {display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);gap:8px;}
+.file-row > div:first-child {min-width:0;flex:1;}
+.file-row > div:last-child {display:flex;align-items:center;}
+.file-row .file-name {border:0;background:transparent;padding:0;min-height:32px;display:flex;align-items:center;gap:9px;max-width:100%;text-align:left;color:var(--ink);opacity:1;}
+.file-name > span {min-width:0;overflow-wrap:anywhere;}
+.file-name > svg {flex-shrink:0;}
+.file-row small {font-size:11px;color:var(--muted);padding-left:28px;}
+.file-row > div:last-child > button,.file-row a {width:44px;height:44px;display:grid;place-items:center;flex-shrink:0;color:var(--accent);}
+.files-error {font-size:12px;color:var(--danger);line-height:1.7;}
+@media(max-width:699px){.files-sheet {width:100%;max-width:100%;height:var(--app-height,100dvh);padding:20px 16px calc(16px + env(safe-area-inset-bottom));}.composer-context {font-size:10px;}.composer-tools {gap:4px;}.chat-guide {max-height:58dvh;}}
+
+.composer-guide .permission-mode-label {font-size:11px;white-space:nowrap;letter-spacing:0;}
+.composer-guide {display:inline-flex;align-items:center;gap:5px;white-space:nowrap;min-height:44px;}

@@ -38,6 +38,7 @@ type Approval = {
   args: { action: string; index?: number; value?: string; key?: string };
 };
 type Props = {
+  fullAccess?: boolean;
   lease: Lease;
   stream?: StreamState;
   approvals?: Approval[];
@@ -61,6 +62,7 @@ const actionLabel = (args: Approval["args"]) =>
       ? `填写「${args.value || ""}」`
       : `按 ${args.key || ""} 键`;
 export function MacWorkspace({
+  fullAccess = true,
   lease,
   stream,
   approvals,
@@ -540,7 +542,7 @@ export function MacWorkspace({
                 </div>
               </div>
             ))}
-          {belongs && settings && (
+          {belongs && settings && !fullAccess && (
             <div className="confirmation-mode">
               <label htmlFor="operation-mode">操作确认</label>
               <select

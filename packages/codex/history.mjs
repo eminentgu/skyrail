@@ -56,6 +56,7 @@ export function applySession(thread,native,{previousMessages=[]}={}){
  // Keep a submission whose result is unknown until its client id is found in
  // Codex history. Never synthesize a second native user message on refresh.
  for(const local of thread.messages||[])if(local.pending&&!seen.has(local.id))messages.push(local);
+ for(const message of messages){const local=(thread.messages||[]).find(m=>m.id===message.id);if(local?.attachments?.length){message.attachments=local.attachments;message.text=local.text}}
  const last=native.turns.at(-1);
  const externalActive=last?.status==='inProgress'||native.status?.type==='active';
  const status=externalActive?'external_running':last?.status||'idle';

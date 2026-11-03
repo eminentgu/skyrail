@@ -1,9 +1,11 @@
 import React from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { downloadUrl, type Attachment } from "./FilesPanel";
 import { Icon } from "./Icon";
 export type ChatMessage = {
   id: string;
+  attachments?: Attachment[];
   role: string;
   text: string;
   createdAt?: string;
@@ -70,13 +72,16 @@ function ApprovalCard({
       setPending(false);
     }
   };
-  const description = application
-    ? `打开 ${approval.app}，连接它的窗口，并让 Codex 在当前对话中观察与操作。`
-    : approval.args.action === "press"
-      ? `点击控件 ${approval.args.index}`
-      : approval.args.action === "setValue"
-        ? `填写：${approval.args.value}`
-        : `按下 ${approval.args.key}`;
+  const description =
+    approval.kind === "runtime"
+      ? approval.args.value || "确认本次命令 / 文件操作"
+      : application
+        ? `打开 ${approval.app}，连接它的窗口，并让 Codex 在当前对话中观察与操作。`
+        : approval.args.action === "press"
+          ? `点击控件 ${approval.args.index}`
+          : approval.args.action === "setValue"
+            ? `填写：${approval.args.value}`
+            : `按下 ${approval.args.key}`;
   return (
     <div
       className="chat-approval"
@@ -86,7 +91,11 @@ function ApprovalCard({
       <div className="approval-heading">
         <span>◈</span>
         <strong>
-          {application ? "允许使用这个应用？" : "确认这次电脑操作"}
+          {approval.kind === "runtime"
+            ? "命令与文件权限确认"
+            : application
+              ? "允许使用这个应用？"
+              : "确认这次电脑操作"}
         </strong>
       </div>
       <p>{description}</p>
@@ -115,10 +124,14 @@ function ApprovalCard({
   );
 }
 export function Conversation({
+  threadId,
+  cwd,
   messages,
   approvals,
   decide,
 }: {
+  threadId?: string;
+  cwd?: string;
   messages: ChatMessage[];
   approvals: ChatApproval[];
   decide: (id: string, allow: boolean, allowAll?: boolean) => Promise<void>;
@@ -181,17 +194,57 @@ export function Conversation({
               <Markdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  a: ({ children, ...props }) => (
-                    <a {...props} target="_blank" rel="noreferrer noopener">
-                      {children}
-                    </a>
-                  ),
+                  a: ({ children, ...props }) =>
+                    (() => {
+                      const href = props.href || "";
+                      const local =
+                        cwd && href.startsWith(cwd + "/")
+                          ? href.slice(cwd.length + 1)
+                          : !href.startsWith("/") &&
+                              !/^[a-z][a-z0-9+.-]*:/i.test(href) &&
+                              !href.startsWith("#")
+                            ? href
+                            : null;
+                      return local && threadId ? (
+                        <a
+                          href={downloadUrl({
+                            threadId,
+                            root: "workspace",
+                            path: local,
+                            name: String(children),
+                            size: 0,
+                          })}
+                          download
+                        >
+                          {children}
+                        </a>
+                      ) : (
+                        <a {...props} target="_blank" rel="noreferrer noopener">
+                          {children}
+                        </a>
+                      );
+                    })(),
                   img: ({ alt }) => <span>[图片：{alt || "未加载"}]</span>,
                 }}
               >
                 {m.text || "正在生成…"}
               </Markdown>
             </div>
+            {!!m.attachments?.length && (
+              <div className="message-files">
+                {m.attachments.map((file) => (
+                  <a
+                    key={file.root + file.path}
+                    href={downloadUrl(file)}
+                    download={file.name}
+                  >
+                    <Icon name="file" size={16} />
+                    {file.name}
+                    <Icon name="download" size={15} />
+                  </a>
+                ))}
+              </div>
+            )}
             {m.role === "assistant" && m.text && <CopyReply text={m.text} />}
           </article>
         );

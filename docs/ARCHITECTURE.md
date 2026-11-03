@@ -41,7 +41,7 @@ epoch 与独占人工桌面租约只约束 Skyrail 路径，不控制其他桌�
 
 当前工具版本升级会恢复同一原生 Codex session ID，不再因版本变化新建会话。原生历史分页读取、跨客户端写入占用与独立 writer 释放见会话同步实现；历史上的 previousCodexIds 仅用于读取旧记录。原生权限继续由 macOS 强制执行。
 
-默认逐次确认；allow_session 由聊天授权卡或电脑面板显式设置，绑定随机 sessionId，不持久化到磁盘。重新绑定窗口、断开或重启服务恢复 ask。聊天删除为可恢复的 deletedAt 标记，默认快照不返回被删除的正文，“最近删除”只返回标题及恢复入口。
+完整权限默认开启，start / resume / turn 显式设置 full access；关闭后才逐次确认。allow_session 由聊天授权卡或电脑面板显式设置，绑定随机 sessionId，不持久化到磁盘。重新绑定窗口、断开或重启服务恢复 ask。聊天删除为可恢复的 deletedAt 标记，默认快照不返回被删除的正文，“最近删除”只返回标题及恢复入口。
 
 ## Remote gateway and managed Mac service
 
@@ -72,3 +72,9 @@ The app-server retains unsubscribed sessions during its no-subscriber grace peri
 `SkyrailSessionStatus` is a separate CoreGraphics read-only helper, so upgrading lock detection does not replace the TCC-authorized Mac app. The service checks lock status before input/capture and periodically while browsers are connected. Locking revokes control, rejects pending approval, disconnects the window and interrupts owned computer work. It does not enter credentials or unlock the system.
 
 An SCStream heartbeat without frames is insufficient. If no frames arrive or the primary capture fails, an isolated native process supplies repeated window snapshots over the existing multipart connection. This process has its own AX indices and only observes the selected app/window. Frames are discarded on generation changes; capture failures never retry writes. The compatibility path uses the existing native observe method to preserve the installed app's signature; optimized capture-only APIs remain future work.
+
+## Permissions and attachments (2026-11-03)
+
+`packages/codex/permissions.mjs` maps a persisted `.data/permissions.json` boolean into thread/start, thread/resume and turn/start fields. The default is full access. Changes are accepted only when no local turn is running or syncing; the next turn resumes the same native session. Typed command/file/network approval requests are routed back to the owner when full access is off; unknown request types fail without granting access. Application approvals honor the same global mode while native owner/epoch/client and RFB control gates remain intact.
+
+`ThreadFiles` streams raw binary POST uploads behind the existing token boundary. Authenticated GET list/download endpoints resolve a workspace or per-thread upload root; the UI never sends an arbitrary absolute root. Attachments are validated again on message submission, supplied to Codex as local file metadata, and merged into canonical history by client message ID. Generated project links are mapped into authenticated attachment downloads.
