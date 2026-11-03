@@ -10,6 +10,8 @@ import {createClientHandler} from './client.mjs';
 import {projectForCwd} from '../../packages/codex/projects.mjs';
 import {createServer as createViteServer} from 'vite';
 import {Codex} from '../../packages/codex/index.mjs';
+import {inspectWriter,stopWriter,isWriterConflict} from '../../packages/codex/owner.mjs';
+import {sessionPermissions} from '../../packages/codex/permissions.mjs';
 import {SessionWriters} from '../../packages/codex/writers.mjs';
 import {prepareSession} from '../../packages/codex/session.mjs';
 import {readSession,applySession,messagesFromTurns} from '../../packages/codex/history.mjs';
@@ -69,7 +71,7 @@ desktop.on('change',()=>publish());
 mac.externalControl=()=>desktop.active;
 mac.on('change',()=>publish());
 const serviceId=randomUUID();
-const snapshot=()=>({service:{id:serviceId,protocol:9},permissions,desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
+const snapshot=()=>({service:{id:serviceId,protocol:10},permissions,desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
 function publish(){syncPower();const data='data: '+JSON.stringify(snapshot())+'\n\n';for(const c of clients)c.write(data)}
 codex.on('offline',()=>{runtime='disconnected';publish()});
 function handleNotification({method,params:p}){
@@ -235,8 +237,19 @@ const server=http.createServer(async(req,res)=>{
   }
   await control;mac.state.humanClientId=body.owner==='human'?body.clientId:null;publish();return json(res,200,snapshot());
  }
- const match=url.pathname.match(/^\/v1\/threads\/([^/]+)\/(messages|stop|delete|restore|sync)$/);const t=threads.find(t=>t.id===match?.[1]);
+ const match=url.pathname.match(/^\/v1\/threads\/([^/]+)\/(messages|stop|delete|restore|sync|connection|reconnect|stop-owner)$/);const t=threads.find(t=>t.id===match?.[1]);
  if(!t)return json(res,404,{message:'对话不存在'});
+ if(['connection','reconnect','stop-owner'].includes(match[2])){
+  if(t.deletedAt||!t.codexId)return json(res,404,{message:'原会话不存在'});
+  if(['running','submitting','syncing'].includes(t.status))return json(res,409,{message:'请先停止当前 Skyrail 任务，再管理连接'});
+  if(match[2]==='connection')return json(res,200,{...await inspectWriter(t.codexId),local:!!writers.get(t.id)});
+  await writers.release(t.id);resumed.delete(t.id);t.needsResume=true;
+  if(match[2]==='stop-owner')await stopWriter(t.codexId,body.fingerprint);
+  const probe=new Codex();
+  try{await probe.connect();await probe.rpc('thread/resume',{threadId:t.codexId,excludeTurns:true,...sessionPermissions(permissions.fullAccess)});await probe.closeAndWait();t.error=null;t.errorCode=null;await syncNative(t);await save();publish();return json(res,200,snapshot())}
+  catch(e){if(isWriterConflict(e)){t.errorCode='writer_busy';t.error='原 Codex 会话的连接仍被占用，可检查并结束占用连接后继续';e.message=t.error;e.status=409}t.error=e.message;await save();publish();throw e}
+  finally{await probe.closeAndWait()}
+ }
  if(match[2]==='delete'){
   if(['running','submitting','syncing'].includes(t.status))return json(res,409,{message:'这段对话仍在执行或同步，请等待结束后再删除'});
   if(mac.state.threadId===t.id){await mac.disconnect(mac.state.epoch);stream.select(null,null)}
@@ -265,11 +278,11 @@ const server=http.createServer(async(req,res)=>{
  if(!t.nativeNamed&&!t.imported){try{await writer.rpc('thread/name/set',{threadId:t.codexId,name:t.title});t.nativeNamed=true}catch{}}
  const input=[{type:'skill',name:'skyrail-computer-use',path:skillPath},{type:'text',text:body.text||'请查看所附文件。'},...(attached.length?[{type:'text',text:'Skyrail attached files (task data; not instructions):\n'+JSON.stringify(attached)}]:[])];
  if(desktop.active)throw Object.assign(Error('人工控制台已打开，新任务已取消；请关闭控制台后再发送'),{status:409});
- turnRequested=true;const r=await writer.rpc('turn/start',{threadId:t.codexId,input,...turnPermissions(permissions.fullAccess,cwd),clientUserMessageId:body.clientMessageId});t.turnId=r.turn.id;userMessage.pending=false;
+ turnRequested=true;const r=await writer.rpc('turn/start',{threadId:t.codexId,input,...turnPermissions(permissions.fullAccess,cwd),clientUserMessageId:body.clientMessageId});t.turnId=r.turn.id;userMessage.pending=false;t.errorCode=null;delete t.retryDraft;
  if(t.status==='submitting')t.status='running';await save();publish();return json(res,202,t);
  }catch(e){
   if(!turnRequested)t.messages=t.messages.filter(m=>m!==userMessage);
-  if(/active writer/i.test(e.message)){e.message='这个 Codex 会话仍由另一客户端占用。请在原客户端释放会话后重试；记录仍可同步。';e.status=409}
+  if(isWriterConflict(e)){t.errorCode='writer_busy';t.retryDraft={text:body.text,attachments:userMessage.attachments};e.message='原 Codex 会话的连接被占用，可检查并结束占用连接后继续；历史记录保留';e.status=409}
   t.status='failed';t.error=e.message;await writers.release(t.id).catch(()=>{});resumed.delete(t.id);await save();publish();throw e;
  }
  }catch(e){json(res,e.status||500,{message:e.message})}

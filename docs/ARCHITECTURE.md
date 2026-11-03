@@ -65,7 +65,7 @@ The Codex durable session is the authority for confirmed user, assistant and vis
 
 `clientUserMessageId` links a submitted user message to its native history item. Sync replaces confirmed cache entries, retains submissions with unknown outcomes, and never creates a second native user turn to repair the view. Native names and cwd are retained. Local soft deletion remains separate from native archive/delete.
 
-The app-server retains unsubscribed sessions during its no-subscriber grace period. `SessionWriters` therefore scopes one process to each active Skyrail session and shuts it down after completion, waiting for exit before exposing completion. A separate read-only connection polls stored history. Independent threads do not lose their connections during this handoff. Late responses from a former process are never written into a replacement connection. Existing foreign writers are not evicted; drafts are restored and an explicit conflict is returned.
+The app-server retains unsubscribed sessions during its no-subscriber grace period. `SessionWriters` therefore scopes one process to each active Skyrail session and shuts it down after completion, waiting for exit before exposing completion. A separate read-only connection polls stored history. Independent threads do not lose their connections during this handoff. Late responses from a former process are never written into a replacement connection. Foreign writer conflicts retain the draft. The owner can explicitly review and stop the occupying process before resuming the same native ID.
 
 ## Lock state and zero-frame recovery
 
@@ -78,3 +78,10 @@ An SCStream heartbeat without frames is insufficient. If no frames arrive or the
 `packages/codex/permissions.mjs` maps a persisted `.data/permissions.json` boolean into thread/start, thread/resume and turn/start fields. The default is full access. Changes are accepted only when no local turn is running or syncing; the next turn resumes the same native session. Typed command/file/network approval requests are routed back to the owner when full access is off; unknown request types fail without granting access. Application approvals honor the same global mode while native owner/epoch/client and RFB control gates remain intact.
 
 `ThreadFiles` streams raw binary POST uploads behind the existing token boundary. Authenticated GET list/download endpoints resolve a workspace or per-thread upload root; the UI never sends an arbitrary absolute root. Attachments are validated again on message submission, supplied to Codex as local file metadata, and merged into canonical history by client message ID. Generated project links are mapped into authenticated attachment downloads.
+
+
+## Connection recovery and bounded file checks (2026-11-03)
+
+Authenticated POST `threads/:id/connection` inspects the native writer lock. `reconnect` releases only Skyrail's local writer and probes the original ID; the probe exits before the response so it cannot occupy the next submission. `stop-owner` requires the reviewed process fingerprint, rechecks ownership and sends SIGTERM. A changed process or shared-session scope is rejected. `SessionWriters` awaits a closing promise before acquiring a replacement writer. No automatic message replay or session fork occurs.
+
+`scripts/local-files.mjs` runs a bounded single-directory search or four-byte readability probe in a disposable Node child. Its 8-second parent deadline kills only that child and reports an incomplete result; it does not equate a timeout with absence. The skill teaches bounded extraction, checking actual paths before Spotlight conclusions, and distinguishing OS denials from stalled storage. It is invoked through ordinary Codex commands, inheriting their permission policy. It exposes no new privileged HTTP filesystem endpoint.

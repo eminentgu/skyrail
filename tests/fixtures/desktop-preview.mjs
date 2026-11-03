@@ -3,7 +3,7 @@
 import http from 'node:http';import net from 'node:net';import {readFile} from 'node:fs/promises';import path from 'node:path';
 import {DesktopConsole,probeDesktop,rejectUpgrade} from '../../packages/macos/desktop.mjs';
 import {getDiffieHellman} from 'node:crypto';
-const root=path.resolve(import.meta.dirname,'../../dist'),token='synthetic-preview-token';let frames=0,keys=0,pointers=0,authAttempts=0;const appInputs=[];let appBound=false;let appOwner='human';let appEpoch=1;
+const root=path.resolve(process.env.SKYRAIL_PREVIEW_DIST||path.join(import.meta.dirname,'../../dist')),token='synthetic-preview-token';let frames=0,keys=0,pointers=0,authAttempts=0;const appInputs=[];let appBound=false;let appOwner='human';let appEpoch=1;
 const rfb=net.createServer(socket=>{
  let stage=0,buffer=Buffer.alloc(0),sent=false;socket.on('error',()=>{});socket.write('RFB 003.889\n');
  socket.on('data',data=>{buffer=Buffer.concat([buffer,data]);while(true){
@@ -23,7 +23,7 @@ const rfb=net.createServer(socket=>{
  }});
 });await new Promise(r=>rfb.listen(0,'127.0.0.1',r));
 const desktop=new DesktopConsole({port:rfb.address().port});
-const threads=[],clients=new Set();let globalClient=null;
+const threads=process.env.SKYRAIL_PREVIEW_CHAT?[{id:'synthetic-thread',title:'整理项目交付文件',codexId:'synthetic-native',cwd:'/projects/skyrail',status:'completed',messages:[{id:'example-user',role:'user',text:'整理这个项目的交付内容，并列出还需要完成的工作。',createdAt:'2026-11-03T02:00:00.000Z'},{id:'example-assistant',role:'assistant',text:'已整理好项目交付清单。\n\n- 核心功能与使用说明已经更新。\n- 文件与会话记录保持关联。\n- 下一步检查发布说明和实际使用体验。\n\n你可以继续补充要求，或切换到电脑查看当前工作。',createdAt:'2026-11-03T02:00:10.000Z'}]}]:[],clients=new Set();let globalClient=null;
 const snapshot=()=>({service:{protocol:6,id:'synthetic'},desktop:desktop.status(),threads,runtime:'connected',stream:{status:appBound?'live':'idle'},lease:{owner:appOwner,epoch:appEpoch,app:appBound?'synthetic.app':null,threadId:appBound?'synthetic-thread':null,humanClientId:globalClient,frame:appBound?{windowTitle:'Synthetic app',width:640,height:400}:null,health:{locked:false,screenRecording:true,accessibility:true}}});
 const publish=()=>{for(const client of clients)client.write('data: '+JSON.stringify(snapshot())+'\n\n')};desktop.on('change',publish);
 const server=http.createServer(async(req,res)=>{

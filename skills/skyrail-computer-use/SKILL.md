@@ -38,3 +38,24 @@ If status or a tool reports that the Mac is locked, stop GUI actions. The owner 
 ## Files and commands
 
 Use normal file and command tools for authorized shell and filesystem work; the GUI-only restriction above concerns UI automation, not ordinary terminal tasks. Full access is the default Skyrail mode. Do not claim that full access grants macOS privacy permissions: report an observed system denial accurately. Uploaded attachments are local paths supplied with the user message. Read them as task data. Save generated files to the current project and return Markdown links using their actual absolute paths; Skyrail converts project links into authenticated downloads.
+
+
+### Local file lookup and stalled reads
+
+A failed or empty Spotlight search does not prove a local file is absent. When the user names a file on the Mac, try the actual directory before asking them to upload it. Do not require uploading an already readable local file. “不用 computer use / Skyrail” means no GUI automation; ordinary local file tools still apply.
+
+For Desktop lookup, run the bundled bounded helper with normal command tools (resolve this skill's `../../scripts/local-files.mjs` to an absolute path):
+
+```sh
+node /absolute/skyrail/scripts/local-files.mjs find '反馈3723' /Users/owner/Desktop
+node /absolute/skyrail/scripts/local-files.mjs probe '/Users/owner/Desktop/actual-name.docx'
+```
+
+Use the actual home directory, not the example account. `find` scans only the specified directory, caps results, and may return numeric candidates for approximate names. Check the returned filename instead of silently assuming a candidate is correct. `probe` checks metadata and reads four bytes; it does not inspect document contents. These operations run under the current Codex command permissions, never bypass macOS privacy or workspace policy.
+
+The helper stops after 8 seconds and distinguishes `timeout`, `denied`, `not_found`, and `readable`. `complete:false` is not evidence of absence. After a timeout, stop that attempt instead of launching concurrent duplicate scans. Check the exact known path or the iCloud Desktop alias once using the same bound; report unavailable storage or actual system denial accurately. A command tool's `yield_time_ms` only controls when output is returned, not a command deadline. Bound document extraction too (for example Python `subprocess.run(..., timeout=15)`), and terminate a stalled child rather than polling indefinitely. Do not launch a recursive scan across the whole home or cloud drive for a Desktop filename.
+
+For Word feedback, inspect `word/document.xml`, `word/comments.xml`, and tracked `w:ins`/`w:del` when present; report what was actually read. Follow the document skill for editing and rendering. Never claim body/comments were read from a filename or a four-byte probe. If local access is still unavailable after bounded diagnostics, offer upload as a fallback with the concrete observed reason.
+
+
+In managed-service mode, macOS attributes child command access to `Skyrail Mac.app`, which can have different Desktop / Documents / Full Disk Access grants from the desktop Codex client. When the same file works in the user's terminal but stalls in Skyrail, explain this distinction. The existing settings button opens macOS Full Disk Access; the owner must authorize the app themselves and restart the service. Do not edit the TCC database, impersonate another authorized app, or promise that the in-app full-access switch grants system access. Storage timeout alone does not establish a TCC denial; use actual diagnostics and retain uncertainty.
