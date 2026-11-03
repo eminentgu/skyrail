@@ -34,6 +34,10 @@ npm run docs:preview
 
 部署产物仅包含静态输出，采用 GitHub Pages artifact 与 deploy actions，部署权限仅授予对应 job。现有 main 必需检查继续生效，CI 也会构建并验证文档。
 
+不要选择“Deploy from a branch → main / (root)”：仓库根目录的 `index.html` 是 Vite 开发入口，直接发布会导致 `/apps/client/src/main.tsx` 返回 404。切换 Source 后，在“Actions → Documentation → Run workflow”选择 `main` 重新部署。
+
+自定义域名在 Pages 设置中配置。工作流从 Pages 读取实际站点 URL，再生成资源路径、canonical 和 sitemap，因此同时支持项目路径和自定义域名根路径。
+
 ## 发布前验证
 
 ```sh
