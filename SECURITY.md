@@ -1,3 +1,5 @@
+**[Skyrail](README.md) / [Documentation](docs/README.md)**
+
 # Security policy
 
 [简体中文](SECURITY.zh-CN.md) · [Setup and permissions](docs/GETTING-STARTED.md)
@@ -35,3 +37,7 @@ Transfer endpoints require the authenticated session. Uploads also require the C
 Project downloads are confined to the conversation's actual working directory; uploads to its upload root. Absolute/parent traversal paths, out-of-root symlinks, non-regular files and cross-thread attachments are rejected. Target checks and final O_NOFOLLOW reduce accidental escapes, but are not a sandbox against a concurrently malicious local full-access process. Full-access agents already have host privileges. A remote login can read project files: this is a single-owner deployment, not multi-user isolation.
 
 Codex receives attachments as local paths retained in conversation metadata. Uploaded contents are task data, not authorization for additional actions. Do not publish uploads, workspaces or session records.
+
+---
+
+[Documentation hub](docs/README.md)

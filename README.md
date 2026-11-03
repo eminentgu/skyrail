@@ -1,24 +1,59 @@
-# Skyrail · 天轨
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/skyrail-banner-dark.svg">
+    <img src="docs/assets/skyrail-banner.svg" alt="Skyrail · 天轨 — Codex + your Mac" width="100%">
+  </picture>
+</p>
 
-[![CI](https://github.com/eminentgu/skyrail/actions/workflows/ci.yml/badge.svg)](https://github.com/eminentgu/skyrail/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<h1 align="center">Your Codex and Mac, side by side.</h1>
 
-**Continue your Codex conversations. See your Mac. Take over when you need to.**
+<p align="center">Continue a conversation. Share a file. See your Mac. Take over.</p>
 
-English · [简体中文](README.zh-CN.md)
+<p align="center"><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
 
-Skyrail is a local-first web interface for Codex and your Mac. Use a desktop or phone browser to continue existing Codex sessions, exchange files, watch an application, and switch between agent work and manual desktop control.
+<p align="center">
+  <a href="https://github.com/eminentgu/skyrail/actions/workflows/ci.yml"><img src="https://github.com/eminentgu/skyrail/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-526c7c" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-526c7c" alt="macOS 14 or newer for native features">
+  <img src="https://img.shields.io/badge/Node.js-22.12%2B-526c7c" alt="Node.js 22.12 or newer">
+</p>
 
-**Early access · macOS 14+ · self-hosted · single user.** There is a working implementation, but phone hardware, cross-application input, and real lock-screen login still have acceptance gaps. See [validation records](docs/VALIDATION.md). There is no hosted service or ready-to-install notarized app.
+<p align="center"><a href="#try-it-locally">Quick start</a> · <a href="docs/README.md">Documentation</a> · <a href="docs/GETTING-STARTED.md">Permissions & testing</a> · <a href="https://github.com/eminentgu/skyrail/issues/new/choose">Report an issue</a></p>
 
-## What you can do
+---
 
-- **Continue your work:** open local Codex sessions grouped by project, retaining session IDs and working directories, and synchronize history.
-- **Exchange files:** attach uploads or project files to a message and download generated results. Upload limit: 50 MiB per file.
-- **Watch and intervene:** view a selected Mac application; use macOS Screen Sharing for manual control of the whole desktop.
-- **Use your phone:** trackpad gestures, pinch-to-zoom, a text-entry keyboard, and a two-tab conversation/computer interface.
-- **Connect remotely:** run a password-protected gateway behind your own HTTPS tunnel.
+Skyrail is a local-first web interface for Codex and your Mac. Continue existing sessions from a desktop or phone browser, with conversations, files and computer control in one place.
 
-Skyrail uses your installed Codex runtime. It does not include a model subscription or bundle the desktop app's private computer-use engine.
+> [!NOTE]
+> **Early access · self-hosted · single user.** No hosted service or notarized installer. Real phones, cross-app input and lock-screen login still have acceptance gaps. [See validation records](docs/VALIDATION.md).
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/skyrail-desktop-dark.png">
+    <img src="docs/assets/skyrail-desktop.png" alt="Skyrail local web interface with conversation/computer navigation and a message composer" width="100%">
+  </picture>
+</p>
+
+<p align="center"><sub>Actual local interface · The current product UI is in Chinese; documentation is available in English and Chinese.</sub></p>
+
+## From conversation to action
+
+<table>
+  <tr>
+    <td width="50%" valign="top"><strong>Pick up where you left off</strong><br><br>Open Codex sessions by project, keeping their original IDs, working directories and history.</td>
+    <td width="50%" valign="top"><strong>A workspace that travels</strong><br><br>Phone trackpad gestures, pinch-to-zoom, text entry, and a simple chat/computer switch.</td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><strong>See the work. Step in.</strong><br><br>Watch a selected app; use macOS Screen Sharing to control the whole desktop yourself.</td>
+    <td width="50%" valign="top"><strong>Files that follow the task</strong><br><br>Attach uploads or project files and download the results. Upload limit: 50 MiB per file.</td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><strong>Your existing Codex</strong><br><br>Use the runtime and account you already have, without a separate agent execution stack.</td>
+    <td width="50%" valign="top"><strong>Connect to your own Mac</strong><br><br>A password gateway and your HTTPS tunnel keep the workspace on your machine.</td>
+  </tr>
+</table>
+
+Skyrail does not include a model subscription or bundle the desktop app’s private computer-use engine.
 
 ## Try it locally
 
@@ -31,14 +66,13 @@ git clone https://github.com/eminentgu/skyrail.git
 cd skyrail
 npm ci
 npm run doctor
-npm test
-npm run build
 npm run dev
 ```
 
 Open **http://127.0.0.1:4317**. Stop the foreground server with Ctrl+C. If Codex is not on PATH, use `CODEX_BIN=/absolute/path/to/codex npm run dev`.
 
-Before sending your first task, open the composer settings and turn off **Allow all operations** if you want workspace-scoped execution with approvals. Full access is currently the default; it does not grant macOS permissions.
+> [!IMPORTANT]
+> Before sending your first task, open the composer settings and turn off **Allow all operations** if you want workspace-scoped execution with approvals. Full access is currently the default; it does not grant macOS permissions.
 
 For native app control, build the helper with `npm run setup:mac`, then grant the permissions required for that feature. Enable macOS Screen Sharing separately for manual desktop control. **[Follow the setup and permission guide →](docs/GETTING-STARTED.md)**
 
@@ -55,11 +89,16 @@ For native app control, build the helper with `npm run setup:mac`, then grant th
 
 Missing GUI permissions do not prevent chat-only testing. They do prevent validating real screenshots, input, and handover. `npm run doctor` checks prerequisites without requesting permissions, capturing screenshots, or making model calls.
 
-## Sessions and control
+<details>
+<summary><strong>How session sync and control handover work</strong></summary>
+
 
 Confirmed history comes from Codex's durable session records. Skyrail stores UI state, pending sends, and recoverable hidden conversations locally. Use clients alternately: **one session cannot have two concurrent writers**. If another client holds its write lock, release it there first. Synchronizing history does not transfer another client's private tools or system permissions.
 
 Manual full-desktop control uses macOS Screen Sharing/noVNC; agent app control uses Skyrail's own Swift adapter. Sending a task parks manual keyboard/mouse input while retaining the desktop stream. Use **Take over** to resume manual input. This coordinates Skyrail clients, not every program or physical input device on the Mac.
+
+
+</details>
 
 ## Remote access and updates
 
@@ -78,14 +117,18 @@ The managed service serves a fixed frontend build; development uses Vite. Build 
 - Active viewing/tasks can keep the system awake; app capture may light the physical display. Headless mode needs a separately validated display setup.
 - Codex shell/MCP access is not an OS sandbox. Read [security boundaries](SECURITY.md) before enabling remote or full access.
 
-## Documentation and development
+## Explore the docs
 
-- [Setup and local testing](docs/GETTING-STARTED.md) · [中文](docs/GETTING-STARTED.zh-CN.md)
-- [Remote access and operation](docs/REMOTE-ACCESS.md) · [中文](docs/REMOTE-ACCESS.zh-CN.md)
-- [Troubleshooting](SUPPORT.md) · [中文](SUPPORT.zh-CN.md)
-- [Contributing](CONTRIBUTING.md) · [中文](CONTRIBUTING.zh-CN.md)
-- [Architecture](docs/ARCHITECTURE.md) · [Validation](docs/VALIDATION.md) · [Changelog](CHANGELOG.md)
-- [Report an issue](https://github.com/eminentgu/skyrail/issues/new/choose) · [Security policy](SECURITY.md) · [中文](SECURITY.zh-CN.md) · [Third-party notices](THIRD-PARTY-NOTICES.md)
+**[Open the documentation hub →](docs/README.md)**
+
+| Get started | Go deeper |
+| --- | --- |
+| [Setup, permissions & staged testing](docs/GETTING-STARTED.md) | [Architecture & control ownership](docs/ARCHITECTURE.md) |
+| [Remote access, updates & removal](docs/REMOTE-ACCESS.md) | [Validation records](docs/VALIDATION.md) |
+| [Troubleshooting](SUPPORT.md) | [Contributing](CONTRIBUTING.md) · [Maintaining](docs/MAINTAINERS.md) |
+| [Security boundaries](SECURITY.md) | [Changelog](CHANGELOG.md) · [Third-party notices](THIRD-PARTY-NOTICES.md) |
+
+### Develop with Skyrail
 
 ```sh
 npm test

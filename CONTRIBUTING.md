@@ -1,3 +1,5 @@
+**[Skyrail](README.md) / [Documentation](docs/README.md)**
+
 # Contributing to Skyrail
 
 [简体中文](CONTRIBUTING.zh-CN.md) · [Setup and local testing](docs/GETTING-STARTED.md)
@@ -41,3 +43,7 @@ Keep English and Chinese user guides aligned when changing setup, permissions, l
 Push a feature branch and open a PR. Main requires a PR, passing Linux/macOS checks on an up-to-date branch, and resolved review threads; force pushes and deletion are blocked. The single-maintainer setup requires zero approving reviews so the owner can merge their own PR after checks. There is no bypass list. CODEOWNERS identifies maintenance responsibility; it does not grant write access. Recheck the rules when adding maintainers or renaming CI jobs. See [maintainer notes](docs/MAINTAINERS.md).
 
 Contributions are offered under MIT with the contributor's authority to do so. Support is best effort without an SLA.
+
+---
+
+[Documentation hub](docs/README.md)

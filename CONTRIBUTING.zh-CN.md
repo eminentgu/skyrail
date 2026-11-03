@@ -1,3 +1,5 @@
+**[Skyrail](README.zh-CN.md) / [文档中心](docs/README.zh-CN.md)**
+
 # 参与 Skyrail
 
 [English](CONTRIBUTING.md) · [安装与本地测试](docs/GETTING-STARTED.zh-CN.md)
@@ -43,3 +45,7 @@ PR 请说明解决的问题、行为变化、验证结果和剩余限制。不�
 ## main 分支保护
 
 向功能分支提交并打开 PR。main 要求 PR、最新分支上的 Linux / macOS CI 通过、讨论解决，禁止强推与删除。当前单人维护不要求第二人审批；规则没有绕过名单。CODEOWNERS 用于标明维护归属，不替代 GitHub 写权限。添加维护者或更改 CI 名称时须复核规则；完整配置见 [维护指南](docs/MAINTAINERS.md)。
+
+---
+
+[返回文档中心](docs/README.zh-CN.md)

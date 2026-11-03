@@ -1,8 +1,11 @@
+**[Skyrail](../README.zh-CN.md) / [文档中心](README.zh-CN.md)**
+
 # 安装与本地测试
 
-[English](GETTING-STARTED.md) · [首页](../README.zh-CN.md)
+[English](GETTING-STARTED.md)
 
-可以分阶段试用：先不授予 GUI 权限，再按需测试电脑操作。公司管理的 Mac 可能禁止屏幕共享或隐私授权；受限的是对应功能，不代表整个项目都无法测试。
+> [!TIP]
+> 可以分阶段试用：先不授予 GUI 权限，再按需测试电脑操作。公司管理的 Mac 可能禁止屏幕共享或隐私授权；受限的是对应功能，不代表整个项目都无法测试。
 
 ## 1. 检查与安装
 
@@ -79,3 +82,7 @@ npm run doctor
 - `node scripts/smoke-session-sync.mjs`：需要运行中的本地服务和真实 Codex；创建专用会话，调用三轮模型，成功后清理自身测试记录（`--keep` 保留）。
 
 脚本会消耗模型额度，可能创建原生会话记录，不能代替 GUI 验收。参见[历史验证](VALIDATION.md)和[本次本地验证](LOCAL-VALIDATION-2026-11-03.md)。
+
+---
+
+[返回文档中心](README.zh-CN.md) · [下一步：远程访问 →](REMOTE-ACCESS.zh-CN.md)

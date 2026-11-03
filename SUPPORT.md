@@ -1,3 +1,5 @@
+**[Skyrail](README.md) / [Documentation](docs/README.md)**
+
 # Support and troubleshooting
 
 [简体中文](SUPPORT.zh-CN.md) · [Setup and permissions](docs/GETTING-STARTED.md)
@@ -57,3 +59,7 @@ Check **Allow all operations** in composer settings. Change it only when tasks a
 Use the folder button to upload files or attach workspace files. The per-file upload limit is 50 MiB; interrupted uploads are cleaned up and same-name uploads are isolated. Refresh project outputs before downloading, or use the generated file links in replies. Test with synthetic files first. Browser automation's file-URL setting is not required for a user's normal file picker.
 
 Logs live in `.data/`; remove credentials, cookies, private paths and conversation content before sharing. Do not attach `.data/`, `workspaces/`, personal desktop captures or full raw diagnostics to a public issue.
+
+---
+
+[Documentation hub](docs/README.md)

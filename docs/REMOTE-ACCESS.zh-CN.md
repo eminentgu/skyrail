@@ -1,6 +1,8 @@
+**[Skyrail](../README.zh-CN.md) / [文档中心](README.zh-CN.md)**
+
 # 远程访问与运维
 
-[English](REMOTE-ACCESS.md) · [首页](../README.zh-CN.md)
+[English](REMOTE-ACCESS.md)
 
 先完成[本地安装](GETTING-STARTED.zh-CN.md)。远程入口不能授予缺失的 macOS 权限，也不能让休眠中的电脑继续运行。
 
@@ -54,3 +56,7 @@ launchctl bootout gui/$(id -u)/local.skyrail.gateway
 锁屏会暂停应用采集 / 输入。桌面认证由本人在人工通道完成。发送任务暂停人工输入并保留串流，“接手操作”恢复输入，“断开连接”结束连接。Skyrail 租约不能隔离其他客户端或物理输入。
 
 参见[故障排查](../SUPPORT.zh-CN.md)、[人工解锁验收](REMOTE-UNLOCK.md)和[安全边界](../SECURITY.md)。
+
+---
+
+[返回文档中心](README.zh-CN.md) · [需要帮助？故障排查 →](../SUPPORT.zh-CN.md)

@@ -1,8 +1,11 @@
+**[Skyrail](../README.md) / [Documentation](README.md)**
+
 # Setup and local testing
 
-[简体中文](GETTING-STARTED.zh-CN.md) · [Home](../README.md)
+[简体中文](GETTING-STARTED.zh-CN.md)
 
-You can evaluate Skyrail in stages. Start without GUI permissions; add them only when you want to test computer control. A managed work Mac may prohibit Screen Sharing or privacy grants. That limits those features, not the entire project.
+> [!TIP]
+> You can evaluate Skyrail in stages. Start without GUI permissions; add them only when you want to test computer control. A managed work Mac may prohibit Screen Sharing or privacy grants. That limits those features, not the entire project.
 
 ## 1. Check and install
 
@@ -79,3 +82,7 @@ Optional smoke scripts:
 - `node scripts/smoke-session-sync.mjs`: requires a running local service and real Codex; creates a dedicated test session, uses three model turns, and cleans up its own test records after success (`--keep` retains them).
 
 These scripts use model quota and may create native session records. Do not run them as a substitute for GUI acceptance. See [historical validation](VALIDATION.md) and [local validation for this checkout](LOCAL-VALIDATION-2026-11-03.md).
+
+---
+
+[Documentation hub](README.md) · [Next: remote access →](REMOTE-ACCESS.md)

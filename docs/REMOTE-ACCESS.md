@@ -1,6 +1,8 @@
+**[Skyrail](../README.md) / [Documentation](README.md)**
+
 # Remote access and operation
 
-[简体中文](REMOTE-ACCESS.zh-CN.md) · [Home](../README.md)
+[简体中文](REMOTE-ACCESS.zh-CN.md)
 
 First complete [local setup](GETTING-STARTED.md). Remote access does not grant missing macOS permissions or make a sleeping Mac available.
 
@@ -54,3 +56,7 @@ Active tasks/viewers can keep the system running; capturing apps may light the p
 Locked sessions pause app capture/input. Complete any desktop authentication yourself using the manual channel. Sending a task parks manual input while keeping the stream; **Take over** restores it, while **Disconnect** ends the connection. Skyrail leases do not isolate other clients or physical input.
 
 See [troubleshooting](../SUPPORT.md), [manual unlock acceptance](REMOTE-UNLOCK.md), and [security boundaries](../SECURITY.md).
+
+---
+
+[Documentation hub](README.md) · [Need help? Troubleshooting →](../SUPPORT.md)

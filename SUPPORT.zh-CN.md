@@ -1,3 +1,5 @@
+**[Skyrail](README.zh-CN.md) / [文档中心](docs/README.zh-CN.md)**
+
 # 支持与故障排查
 
 [English](SUPPORT.md) · [安装与权限](docs/GETTING-STARTED.zh-CN.md)
@@ -57,3 +59,7 @@
 文件夹按钮用于上传或添加项目文件。单文件上传限制为 50 MiB，失败或断开的半成品会清理，同名上传相互隔离。下载前可刷新项目结果，或使用回复中的文件链接。先用虚构文件测试；用户正常文件选择器不要求浏览器自动化的 file-URL 设置。
 
 日志在 `.data/`，分享前删除凭据、Cookie、私人路径和聊天内容。不要向公共 Issue 附上 `.data/`、`workspaces/`、私人桌面截图或完整原始诊断日志。
+
+---
+
+[返回文档中心](docs/README.zh-CN.md)
