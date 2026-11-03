@@ -161,7 +161,20 @@ func run(_ req: [String:Any]) async throws -> [String:Any] {
   guard let window=content.windows.first(where:{$0.owningApplication?.processID==app.processIdentifier && $0.windowLayer==0 && $0.frame.width>80 && $0.frame.height>80 && ((req["windowId"] as? UInt32) == nil || $0.windowID == req["windowId"] as? UInt32)}) else { try fail("没有可捕获的应用窗口，请打开窗口后重试") }
   let filter=SCContentFilter(desktopIndependentWindow:window)
   let config=SCStreamConfiguration();if #available(macOS 14.2,*) {config.ignoreShadowsSingleWindow=true};config.width=Int(window.frame.width);config.height=Int(window.frame.height);config.showsCursor=false;config.capturesAudio=false
+  let videoLevel = (req["videoQuality"] as? Int).map { min(2, max(0, $0)) }
+  if let level = videoLevel {
+   let scale = min(1, [640.0, 1024.0, 1600.0][level] / max(window.frame.width, window.frame.height))
+   config.width = max(2, Int(window.frame.width * scale))
+   config.height = max(2, Int(window.frame.height * scale))
+  }
   let image=try await SCScreenshotManager.captureImage(contentFilter:filter,configuration:config)
+  if let level = videoLevel {
+   let bytes = NSMutableData()
+   guard let encoder = CGImageDestinationCreateWithData(bytes, UTType.jpeg.identifier as CFString, 1, nil) else { try fail("图像编码失败") }
+   CGImageDestinationAddImage(encoder, image, [kCGImageDestinationLossyCompressionQuality: [0.30, 0.53, 0.72][level]] as CFDictionary)
+   guard CGImageDestinationFinalize(encoder) else { try fail("图像编码失败") }
+   return ["image":"data:image/jpeg;base64," + (bytes as Data).base64EncodedString()]
+  }
   let bytes=NSMutableData();guard let dest=CGImageDestinationCreateWithData(bytes,UTType.png.identifier as CFString,1,nil) else { try fail("图像编码失败") };CGImageDestinationAddImage(dest,image,nil);CGImageDestinationFinalize(dest)
   elements=[];observedApp=appID;var lines=[String]();if AXIsProcessTrusted() { walk(AXUIElementCreateApplication(app.processIdentifier),0,&lines) } else { lines.append("辅助功能未授权；仅观看，不可操作") }
   return ["text":lines.joined(separator:"\n"),"image":"data:image/png;base64,"+(bytes as Data).base64EncodedString(),"windowTitle":window.title ?? "","windowId":window.windowID,"width":config.width,"height":config.height,"capturedAt":ISO8601DateFormatter().string(from:Date())]

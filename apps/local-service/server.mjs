@@ -1,3 +1,4 @@
+import {messageWindow} from '../../packages/codex/message-window.mjs';
 import http from 'node:http';
 import {attachmentInputs,imageType} from '../../packages/codex/attachments.mjs';
 import {ThreadFiles} from './files.mjs';
@@ -52,15 +53,18 @@ async function syncNative(thread){
    await historyCodex.connect();const native=await readSession(historyCodex,thread.codexId);
    const previousMessages=[];
    for(const id of new Set(thread.previousCodexIds||[]))if(id!==thread.codexId)previousMessages.push(...messagesFromTurns((await readSession(historyCodex,id)).turns));
-   const changed=applySession(thread,native,{previousMessages});if(changed)await save();publish();return native;
+   const changed=applySession(thread,native,{previousMessages});if(changed){await save();publish()}return native;
   }catch(e){thread.syncError=e.message;publish();throw e}
  })().finally(()=>syncing.delete(thread.id));syncing.set(thread.id,work);return work;
 }
 const stream=new MacStream(root);
 const power=new MacPower({onError:()=>console.warn('Skyrail could not prevent system idle sleep')});
-const syncPower=()=>power.setActive(desktop.connected||desktop.active||stream.clients.size>0||threads.some(t=>['running','submitting'].includes(t.status)),{display:desktop.connected||desktop.active||stream.clients.size>0||!!(mac.state.app&&!mac.state.health?.locked&&threads.some(t=>t.id===mac.state.threadId&&['running','submitting'].includes(t.status)))});
+const syncPower=()=>power.setActive(desktop.connected||desktop.active||stream.viewing||threads.some(t=>['running','submitting'].includes(t.status)),{display:desktop.connected||desktop.active||stream.viewing||!!(mac.state.app&&!mac.state.health?.locked&&threads.some(t=>t.id===mac.state.threadId&&['running','submitting'].includes(t.status)))});
 stream.on('activity',syncPower);
-stream.on('change',()=>publish());
+stream.on('change', () => {
+ const data = 'event: stream\ndata: ' + JSON.stringify(stream.state) + '\n\n';
+ for (const client of clients) if (!client.writableNeedDrain) client.write(data);
+});
 const mac=new MacBridge(root,{power});const approvals=new Map();
 const desktop=new DesktopConsole({beforeAcquire:async()=>{
  for(const [id,a] of approvals){approvals.delete(id);a.resolve(false)}
@@ -72,8 +76,39 @@ desktop.on('change',()=>publish());
 mac.externalControl=()=>desktop.active;
 mac.on('change',()=>publish());
 const serviceId=randomUUID();
-const snapshot=()=>({service:{id:serviceId,protocol:11},permissions,desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
-function publish(){syncPower();const data='data: '+JSON.stringify(snapshot())+'\n\n';for(const c of clients)c.write(data)}
+const snapshot=(scope = null)=>({service:{id:serviceId,protocol:12},permissions,desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt).map(t=>{
+ if (scope === null) return t;
+ const {messages, retryDraft, ...summary} = t;
+ return t.id === scope ? {...summary, retryDraft, ...messageWindow(messages)} : {...summary, messages:[]};
+}),deletedThreads:threads.filter(t=>t.deletedAt).map(t=>({id:t.id,title:t.title,deletedAt:t.deletedAt})),runtime,lease:{...mac.state,frame:mac.state.frame?{windowTitle:mac.state.frame.windowTitle,capturedAt:mac.state.frame.capturedAt,width:mac.state.frame.width,height:mac.state.frame.height}:null},stream:stream.state,approvals:[...approvals.values()].map(({resolve,...a})=>a)});
+let pendingPublish;
+const congested = new WeakSet();
+const eventViews = new WeakMap();
+function publish(){
+ syncPower();
+ if (pendingPublish) return;
+ pendingPublish = setTimeout(() => {
+  pendingPublish = undefined;
+  if (!clients.size) return;
+  const views = new Map();
+  for (const client of clients) {
+   if (client.writableNeedDrain) {
+    if (!congested.has(client)) {
+     congested.add(client);
+     client.once('drain', () => {congested.delete(client);publish()});
+    }
+   } else {
+    const view = eventViews.get(client);
+    const scope = view?.scope ?? null;
+    if (!views.has(scope)) views.set(scope, JSON.stringify(snapshot(scope)));
+    const data = views.get(scope);
+    if (view && view.last === data) continue;
+    if (view) view.last = data;
+    client.write('data: ' + data + '\n\n');
+   }
+  }
+ }, 150);
+}
 codex.on('offline',()=>{runtime='disconnected';publish()});
 function handleNotification({method,params:p}){
  const t=threads.find(t=>t.codexId===p?.threadId);if(!t)return;
@@ -134,22 +169,51 @@ const production=process.env.SKYRAIL_MANAGED_SERVICE==='1'||process.env.SKYRAIL_
 const vite=production?null:await createViteServer({server:{middlewareMode:true},appType:'spa'});
 const clientHandler=production?await createClientHandler(path.join(root,'dist'),{snapshotTo:path.join(root,'.data/client-build',serviceId)}):(req,res)=>vite.middlewares(req,res);
 const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(value))};
+let frameLockCheck = { at: 0, status: null };
+function assertFrameUnlocked() {
+ if (desktop.active) throw Object.assign(Error('电脑正在由用户操作，请交给 Codex 后再连接应用'), {status:409});
+ const now = Date.now();
+ if (now - frameLockCheck.at >= 200 || !frameLockCheck.status) {
+  frameLockCheck = { at: now, status: mac.readStatus() };
+ }
+ const status = frameLockCheck.status;
+ if (!status.available || status.locked) throw Object.assign(Error(status.statusError || 'Mac 当前已锁屏'), {status:423});
+}
 const server=http.createServer(async(req,res)=>{
  if(req.headers.host!==host){res.writeHead(403);return res.end('Invalid host')}
  const url=new URL(req.url,`http://${host}`);
+ const scope = url.searchParams.has('threadId') && url.searchParams.get('compact') === '1'
+  ? url.searchParams.get('threadId')
+  : typeof req.headers['x-skyrail-thread'] === 'string' ? req.headers['x-skyrail-thread'] : null;
+ const view = () => snapshot(scope);
  if(!url.pathname.startsWith('/v1/'))return clientHandler(req,res);
  res.setHeader('Cache-Control','no-store');
  if(req.headers.origin && req.headers.origin!==`http://${host}`)return json(res,403,{message:'来源不受支持'});
- if(url.pathname==='/v1/bootstrap' && req.method==='GET'){res.setHeader('Set-Cookie',`skyrail=${token}; HttpOnly; SameSite=Strict; Path=/v1`);return json(res,200,{token,...snapshot()})}
- if(url.pathname==='/v1/mac/stream'&&req.method==='GET'){
+ if(url.pathname==='/v1/bootstrap' && req.method==='GET'){res.setHeader('Set-Cookie',`skyrail=${token}; HttpOnly; SameSite=Strict; Path=/v1`);return json(res,200,{token,...view()})}
+ if(['/v1/mac/stream','/v1/mac/frame'].includes(url.pathname)&&req.method==='GET'){
   if(!req.headers.cookie?.split('; ').includes(`skyrail=${token}`))return json(res,401,{message:'需要连接会话'});
   if(!mac.state.app||url.searchParams.get('threadId')!==mac.state.threadId||url.searchParams.get('app')!==mac.state.app)return json(res,409,{message:'电脑已切换到其他对话或应用'});
-  try{mac.assertUnlocked()}catch(e){return json(res,e.status||423,{message:e.message})}
-  stream.attach(res);return;
+  try {
+   if (url.pathname === '/v1/mac/frame') assertFrameUnlocked();
+   else mac.assertUnlocked();
+  } catch(e) { return json(res,e.status || 423,{message:e.message}); }
+  if (url.pathname === '/v1/mac/frame') {
+   if (url.searchParams.get('epoch') !== String(mac.state.epoch)) return json(res,409,{message:'窗口连接已变更'});
+   const requested = Number(url.searchParams.get('quality') ?? 1);
+   const quality = [0,1,2].includes(requested) ? requested : 1;
+   stream.sample(res, quality, Number(url.searchParams.get('after')));
+  } else stream.attach(res);
+  return;
  }
  if(req.method==='GET' && url.pathname==='/v1/events'){
  if(!req.headers.cookie?.split('; ').includes(`skyrail=${token}`))return json(res,401,{message:'需要连接会话'});
- res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive'});clients.add(res);res.write('data: '+JSON.stringify(snapshot())+'\n\n');req.on('close',()=>clients.delete(res));return;
+ res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive'});clients.add(res);const first=JSON.stringify(view());eventViews.set(res,{scope,last:first});res.write('data: '+first+'\n\n');req.on('close',()=>clients.delete(res));return;
+ }
+ if (url.pathname === '/v1/history' && req.method === 'GET') {
+  if (!req.headers.cookie?.split('; ').includes(`skyrail=${token}`)) return json(res,401,{message:'需要连接会话'});
+  const thread = threads.find(t => t.id === url.searchParams.get('threadId') && !t.deletedAt);
+  if (!thread) return json(res,404,{message:'对话不存在'});
+  return json(res,200,messageWindow(thread.messages,url.searchParams.get('before')));
  }
  if(url.pathname.startsWith('/v1/files/')){
   if(!req.headers.cookie?.split('; ').includes(`skyrail=${token}`)||req.method==='POST'&&req.headers['x-skyrail-token']!==token)return json(res,403,{message:'文件访问校验失败'});
@@ -187,12 +251,12 @@ const server=http.createServer(async(req,res)=>{
   permissions=await savePermissions(permissionsFile,body.fullAccess);
   for(const t of threads)t.needsResume=true;
   if(mac.state.sessionId&&!permissions.fullAccess)mac.setApprovalMode(mac.state.threadId,mac.state.epoch,mac.state.sessionId,'ask');
-  await save();publish();return json(res,200,snapshot());
+  await save();publish();return json(res,200,view());
  }
  if(url.pathname==='/v1/settings/system-permissions'){
   execFile('/usr/bin/open',['x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'],()=>{});return json(res,200,{ok:true});
  }
- if(url.pathname==='/v1/connect'){await codex.connect();runtime='connected';res.setHeader('Set-Cookie',`skyrail=${token}; HttpOnly; SameSite=Strict; Path=/v1`);publish();for(const t of threads)if(t.codexId&&!t.deletedAt)void syncNative(t).catch(()=>{});return json(res,200,snapshot())}
+ if(url.pathname==='/v1/connect'){await codex.connect();runtime='connected';res.setHeader('Set-Cookie',`skyrail=${token}; HttpOnly; SameSite=Strict; Path=/v1`);publish();for(const t of threads)if(t.codexId&&!t.deletedAt)void syncNative(t).catch(()=>{});return json(res,200,view())}
  if(url.pathname==='/v1/threads'){const t={id:randomUUID(),title:'新对话',messages:[],status:'idle'};threads.unshift(t);await save();publish();return json(res,200,t)}
  if(url.pathname==='/v1/sessions/list'){
   await historyCodex.connect();const result=await historyCodex.rpc('thread/list',{limit:30,sourceKinds:['cli','vscode','exec','appServer','unknown'],sortKey:'updated_at',...(body.cursor?{cursor:body.cursor}:{}),...(body.search?{searchTerm:String(body.search).slice(0,200)}:{})});
@@ -204,7 +268,7 @@ const server=http.createServer(async(req,res)=>{
   await historyCodex.connect();const native=await readSession(historyCodex,body.codexId);
   let t=threads.find(t=>t.codexId===native.id);
   if(!t){t={id:randomUUID(),title:native.name||native.preview?.slice(0,50)||'Codex 会话',messages:[],status:'idle',codexId:native.id,originator:native.originator,imported:true};threads.unshift(t)}
-  if(!['running','submitting','syncing'].includes(t.status)){t.deletedAt=null;applySession(t,native);await save()}publish();return json(res,200,{threadId:t.id,...snapshot()});
+  if(!['running','submitting','syncing'].includes(t.status)){t.deletedAt=null;applySession(t,native);await save()}publish();return json(res,200,{threadId:t.id,...view()});
  }
  if(url.pathname==='/v1/mac/health')return json(res,200,await mac.health());
  if(url.pathname==='/v1/mac/permissions')return json(res,200,await mac.rpc('requestPermissions'));
@@ -213,10 +277,10 @@ const server=http.createServer(async(req,res)=>{
  if(url.pathname==='/v1/mac/bind'){
   if(!threads.some(t=>t.id===body.threadId&&!t.deletedAt))return json(res,404,{message:'先创建对话'});
   mac.assertUnlocked();
-  const target=threads.find(t=>t.id===body.threadId);await mac.bind(body.app,body.threadId,body.windowId);mac.state.humanClientId=body.clientId;stream.select(mac.state.app,mac.state.frame.windowId);publish();return json(res,200,snapshot());
+  const target=threads.find(t=>t.id===body.threadId);await mac.bind(body.app,body.threadId,body.windowId);mac.state.humanClientId=body.clientId;stream.select(mac.state.app,mac.state.frame.windowId);publish();return json(res,200,view());
  }
  if(url.pathname==='/v1/mac/policy'){
-  mac.setApprovalMode(body.threadId,body.expectedEpoch,body.sessionId,body.mode);publish();return json(res,200,snapshot());
+  mac.setApprovalMode(body.threadId,body.expectedEpoch,body.sessionId,body.mode);publish();return json(res,200,view());
  }
  if(url.pathname==='/v1/mac/input')return json(res,200,await mac.humanInput(body.threadId,body.epoch,body.clientId,body.input||{}));
  if(url.pathname==='/v1/mac/release'){
@@ -228,9 +292,9 @@ const server=http.createServer(async(req,res)=>{
   for(const [id,a] of approvals){approvals.delete(id);a.resolve(false)}
   const t=threads.find(t=>t.id===mac.state.threadId);const operation=mac.disconnect(body.expectedEpoch);stream.select(null,null);
   if(t?.status==='running')interruptThread(t).catch(()=>{});
-  await operation;publish();return json(res,200,snapshot());
+  await operation;publish();return json(res,200,view());
  }
- if(url.pathname==='/v1/mac/observe'){await mac.observe();return json(res,200,snapshot())}
+ if(url.pathname==='/v1/mac/observe'){await mac.observe();return json(res,200,view())}
  if(url.pathname==='/v1/approval'){
   const approval=approvals.get(body.id);if(!approval)return json(res,409,{message:'审批已失效'});
   approvals.delete(body.id);approval.resolve(body.allow===true,{allowAll:body.allowAll===true});publish();return json(res,200,{ok:true});
@@ -243,7 +307,7 @@ const server=http.createServer(async(req,res)=>{
    const t=threads.find(t=>t.id===mac.state.threadId);
    if(t?.status==='running')interruptThread(t).catch(()=>{});
   }
-  await control;mac.state.humanClientId=body.owner==='human'?body.clientId:null;publish();return json(res,200,snapshot());
+  await control;mac.state.humanClientId=body.owner==='human'?body.clientId:null;publish();return json(res,200,view());
  }
  const match=url.pathname.match(/^\/v1\/threads\/([^/]+)\/(messages|stop|delete|restore|sync|connection|reconnect|stop-owner)$/);const t=threads.find(t=>t.id===match?.[1]);
  if(!t)return json(res,404,{message:'对话不存在'});
@@ -254,27 +318,27 @@ const server=http.createServer(async(req,res)=>{
   await writers.release(t.id);resumed.delete(t.id);t.needsResume=true;
   if(match[2]==='stop-owner')await stopWriter(t.codexId,body.fingerprint);
   const probe=new Codex();
-  try{await probe.connect();await probe.rpc('thread/resume',{threadId:t.codexId,excludeTurns:true,...sessionPermissions(permissions.fullAccess)});await probe.closeAndWait();t.error=null;t.errorCode=null;await syncNative(t);await save();publish();return json(res,200,snapshot())}
+  try{await probe.connect();await probe.rpc('thread/resume',{threadId:t.codexId,excludeTurns:true,...sessionPermissions(permissions.fullAccess)});await probe.closeAndWait();t.error=null;t.errorCode=null;await syncNative(t);await save();publish();return json(res,200,view())}
   catch(e){if(isWriterConflict(e)){t.errorCode='writer_busy';t.error='原 Codex 会话的连接仍被占用，可检查并结束占用连接后继续';e.message=t.error;e.status=409}t.error=e.message;await save();publish();throw e}
   finally{await probe.closeAndWait()}
  }
  if(match[2]==='delete'){
   if(['running','submitting','syncing'].includes(t.status))return json(res,409,{message:'这段对话仍在执行或同步，请等待结束后再删除'});
   if(mac.state.threadId===t.id){await mac.disconnect(mac.state.epoch);stream.select(null,null)}
-  t.deletedAt=new Date().toISOString();await save();publish();return json(res,200,snapshot());
+  t.deletedAt=new Date().toISOString();await save();publish();return json(res,200,view());
  }
- if(match[2]==='restore'){t.deletedAt=null;await save();publish();return json(res,200,snapshot())}
+ if(match[2]==='restore'){t.deletedAt=null;await save();publish();return json(res,200,view())}
  if(t.deletedAt)return json(res,410,{message:'这段对话已移到最近删除，可从历史记录恢复'});
- if(match[2]==='sync'){await syncNative(t);return json(res,200,snapshot())}
+ if(match[2]==='sync'){await syncNative(t);return json(res,200,view())}
  if(match[2]==='stop'){if(mac.state.threadId===t.id)await mac.control(mac.state.epoch,'none');for(const [id,a] of approvals){if(a.threadId===t.id){approvals.delete(id);a.resolve(false)}}await interruptThread(t);return json(res,202,{accepted:true})}
  if(desktop.active)return json(res,409,{message:'人工全桌面控制期间已暂停新任务，请先断开控制台'});
  if(typeof body.text!=='string'||(!body.text.trim()&&!body.attachments?.length)||typeof body.clientMessageId!=='string')return json(res,400,{message:'请输入消息与消息编号'});
- if(t.messages.some(m=>m.id===body.clientMessageId))return json(res,200,t);
+ if(t.messages.some(m=>m.id===body.clientMessageId))return json(res,200,scope===null?t:{id:t.id,status:t.status});
  if(['running','submitting','syncing'].includes(t.status))return json(res,409,{message:'请等待当前回复与记录同步结束后再补充'});
  if(t.codexId)await syncNative(t);
  if(t.status==='external_running')return json(res,409,{message:'这个会话正在其他 Codex 客户端执行；请等待结束后同步记录再继续'});
  await codex.connect();runtime='connected';
- if(t.messages.some(m=>m.id===body.clientMessageId))return json(res,200,t);
+ if(t.messages.some(m=>m.id===body.clientMessageId))return json(res,200,scope===null?t:{id:t.id,status:t.status});
  if(['running','submitting','syncing','external_running'].includes(t.status))return json(res,409,{message:'会话正在执行或同步，请等待结束后继续'});
  const attached=await threadFiles.attachments(t,body.attachments||[]);
  t.status='submitting';t.error=null;if(mac.state.threadId===t.id)mac.agentObservationVersion=-1;const userMessage={id:body.clientMessageId,role:'user',text:body.text||'请查看所附文件。',attachments:attached.map(({localPath,...file})=>file),createdAt:new Date().toISOString(),pending:true};t.messages.push(userMessage);if(!t.title||t.title==='新对话')t.title=(body.text.trim()||attached[0]?.name||'图片对话').slice(0,40);await save();publish();
@@ -287,7 +351,7 @@ const server=http.createServer(async(req,res)=>{
  const input=[{type:'skill',name:'skyrail-computer-use',path:skillPath},{type:'text',text:body.text||'请查看所附文件。'},...attachmentInputs(attached)];
  if(desktop.active)throw Object.assign(Error('人工控制台已打开，新任务已取消；请关闭控制台后再发送'),{status:409});
  turnRequested=true;const r=await writer.rpc('turn/start',{threadId:t.codexId,input,...turnPermissions(permissions.fullAccess,cwd),clientUserMessageId:body.clientMessageId});t.turnId=r.turn.id;userMessage.pending=false;t.errorCode=null;delete t.retryDraft;
- if(t.status==='submitting')t.status='running';await save();publish();return json(res,202,t);
+ if(t.status==='submitting')t.status='running';await save();publish();return json(res,202,scope===null?t:{id:t.id,status:t.status});
  }catch(e){
   if(!turnRequested)t.messages=t.messages.filter(m=>m!==userMessage);
   if(isWriterConflict(e)){t.errorCode='writer_busy';t.retryDraft={text:body.text,attachments:userMessage.attachments};e.message='原 Codex 会话的连接被占用，可检查并结束占用连接后继续；历史记录保留';e.status=409}
@@ -297,6 +361,10 @@ const server=http.createServer(async(req,res)=>{
 });
 server.on('upgrade',(req,socket,head)=>{if(new URL(req.url,`http://${host}`).pathname==='/v1/desktop/socket')desktop.upgrade(req,socket,head,{host,token});else if(production||!req.headers['sec-websocket-protocol']?.includes('vite-hmr'))rejectUpgrade(socket)});
 let checkingLock=false;
+const eventsHeartbeat = setInterval(() => {
+ for (const client of clients) if (!client.writableNeedDrain) client.write(': keepalive\n\n');
+}, 15000);
+eventsHeartbeat.unref();
 const lockTimer=setInterval(async()=>{
  if(checkingLock||!clients.size)return;checkingLock=true;
  try{

@@ -9,6 +9,16 @@ export default class DesktopRFB extends RFB {
     this._cursor._canvas.style.opacity = "0";
     this._gestures.detach();
   }
+  _framebufferUpdate() {
+    this._skyrailFrameStarted ??= performance.now();
+    const complete = super._framebufferUpdate();
+    if (complete) {
+      const elapsed = performance.now() - this._skyrailFrameStarted;
+      this._skyrailFrameStarted = undefined;
+      if (elapsed > 350) this.dispatchEvent(new Event("skyrail-slow-frame"));
+    }
+    return complete;
+  }
   sendPointer(input) {
     if (this._rfbConnectionState !== "connected" || this._viewOnly) return;
     const { x, y, kind, button = 0, deltaX = 0, deltaY = 0 } = input;

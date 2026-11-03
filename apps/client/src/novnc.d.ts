@@ -12,6 +12,8 @@ declare module "@novnc/novnc" {
     focusOnClick: boolean;
     showDotCursor: boolean;
     viewOnly: boolean;
+    qualityLevel: number;
+    compressionLevel: number;
     disconnect(): void;
     focus(): void;
     blur(): void;

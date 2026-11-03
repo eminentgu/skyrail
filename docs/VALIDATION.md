@@ -184,3 +184,12 @@
 - 同一 native ID 同步 / 刷新后图片、附件元数据和回复保留。浏览器剪贴板真实粘贴 PNG 成功添加缩略图；模拟慢速上传后点击取消，待发送附件没有新增，发送保持禁用；恢复网络设置与原剪贴板。
 - 390×844 布局无横向溢出（document scrollWidth=390），缩略图与图片模态预览可用，模态宽 366px；关闭预览和移除附件成功。手机真机相册与 IME 未在本轮验收。拖放入口已实现，未以剪贴板测试代替真实 OS 拖放验证。
 - 登录后 raster preview 200 / image/png / nosniff，未登录 403，命名为 PNG 的 SVG 415。测试图片和对话位于忽略目录，不发布业务数据。HEIC / SVG 暂不支持原生识图；仅原生导入、没有 Skyrail 附件元数据的历史图片仍是占位。
+
+## 2026-11-03 — Adaptive video and bilingual Web UI
+
+- macOS Calculator was captured by the installed service using the standalone capture helper. The 640-pixel data-saver frame was 12,304 bytes and the 674-pixel high-quality frame was 30,189 bytes.
+- Chrome at 390 ms latency and 24 KB/s download switched to Data saver and decoded a 640-pixel frame. Offline and online transitions preserved the unsent draft. Switching between English and Chinese preserved the draft as well.
+- After taking control from Chrome, clicks on the remote Calculator entered 3 + 4 and the native accessibility tree showed 7. The keyboard pane stayed closed and the video rectangle kept its dimensions throughout the clicks.
+- The service supports separate capture-only builds for installations with macOS grants tied to the existing application signature. Re-signing the complete app failed permission preflight on the test Mac. The original app was restored and capture-only operation was verified using the existing grant.
+- The synthetic RFB server received a quality change from 7 to 2 during browser throttling. Blocking the renewal HTTP route briefly kept the same authenticated connection open. macOS Screen Sharing encoder-specific bitrate was not measured.
+- Compact bootstrap sends conversation summaries. The live subscription sends only the selected transcript's latest message window, and older messages can be requested by ID.

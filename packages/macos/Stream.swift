@@ -7,20 +7,44 @@ import ImageIO
 import UniformTypeIdentifiers
 
 // Separate capture process: never reads AX or changes the agent's element indices.
-final class WindowStream: NSObject, SCStreamOutput, SCStreamDelegate {
+final class WindowStream: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
  let context=CIContext(options:[.cacheIntermediates:false])
- var stopped=false
- func stream(_ stream: SCStream, didStopWithError error: Error) { stopped=true; Self.status(["error":error.localizedDescription]) }
+ private let profileLock = NSLock()
+ private var profile = 1
+ private var lastOutput = Date.distantPast
+ private var didStop = false
+ var stopped: Bool {
+  profileLock.lock()
+  defer { profileLock.unlock() }
+  return didStop
+ }
+ func setProfile(_ value: Int) {
+  profileLock.lock()
+  profile = min(2, max(0, value))
+  profileLock.unlock()
+ }
+ func readProfile() -> Int {
+  profileLock.lock()
+  defer { profileLock.unlock() }
+  return profile
+ }
+ func stream(_ stream: SCStream, didStopWithError error: Error) { profileLock.lock(); didStop = true; profileLock.unlock(); Self.status(["error":error.localizedDescription]) }
  static func status(_ value:[String:Any]) { if let data=try? JSONSerialization.data(withJSONObject:value) { FileHandle.standardError.write(data+Data([10])) } }
  func stream(_ stream:SCStream,didOutputSampleBuffer sample:CMSampleBuffer,of type:SCStreamOutputType) {
   guard type == .screen,sample.isValid,let buffer=sample.imageBuffer else { return }
   if let attachments=CMSampleBufferGetSampleAttachmentsArray(sample,createIfNecessary:false) as? [[SCStreamFrameInfo:Any]], let status=attachments.first?[.status] as? Int, status != SCFrameStatus.complete.rawValue { return }
+  let level = readProfile()
+  let now = Date()
+  guard now.timeIntervalSince(lastOutput) >= [0.12, 0.085, 0.060][level] else { return }
+  lastOutput = now
   autoreleasepool {
-   let ci=CIImage(cvPixelBuffer:buffer)
+   let source = CIImage(cvPixelBuffer:buffer)
+   let scale = min(1, [640.0, 1024.0, 1600.0][level] / max(source.extent.width, source.extent.height))
+   let ci = source.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
    guard let image=context.createCGImage(ci,from:ci.extent) else{return}
    let data=NSMutableData()
    guard let destination=CGImageDestinationCreateWithData(data,UTType.jpeg.identifier as CFString,1,nil) else{return}
-   CGImageDestinationAddImage(destination,image,[kCGImageDestinationLossyCompressionQuality:0.72] as CFDictionary)
+   CGImageDestinationAddImage(destination,image,[kCGImageDestinationLossyCompressionQuality:[0.30, 0.53, 0.72][level]] as CFDictionary)
    guard CGImageDestinationFinalize(destination) else{return}
    var size=UInt32(data.length).bigEndian
    withUnsafeBytes(of:&size){FileHandle.standardOutput.write(Data($0))}
@@ -42,6 +66,11 @@ final class WindowStream: NSObject, SCStreamOutput, SCStreamDelegate {
    config.minimumFrameInterval=CMTime(value:1,timescale:15);config.queueDepth=3;config.showsCursor=false;config.capturesAudio=false
    config.pixelFormat=kCVPixelFormatType_32BGRA
    let output=WindowStream();let stream=SCStream(filter:filter,configuration:config,delegate:output)
+   DispatchQueue.global(qos: .utility).async {
+    while let line = readLine(), let value = Int(line) {
+     output.setProfile(value)
+    }
+   }
    try stream.addStreamOutput(output,type:.screen,sampleHandlerQueue:DispatchQueue(label:"skyrail.frames",qos:.userInteractive))
    try await stream.startCapture()
    status(["type":"started","width":config.width,"height":config.height,"windowId":window.windowID])

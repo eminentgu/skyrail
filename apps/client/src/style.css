@@ -3331,3 +3331,29 @@ main.split {
 .picture-toolbar {display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .picture-toolbar > span {flex:1;min-width:0;overflow-wrap:anywhere;}
 .picture-toolbar a,.picture-toolbar button {display:grid;place-items:center;flex:none;min-width:44px;min-height:44px;color:inherit;border-radius:12px;}
+
+/* Connection controls use solid surfaces so video updates don't reblur chrome. */
+.header-actions {display:flex;align-items:center;justify-content:flex-end;gap:8px;}
+.language-toggle,.network-notice button {
+  border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  color:inherit;min-height:36px;padding:0 11px;font-size:12px;font-weight:650;
+}
+.network-notice {
+  position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:5;
+  display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:12px;
+  border:1px solid var(--line);background:var(--surface);font-size:13px;
+  max-width:calc(100vw - 28px);box-shadow:0 6px 20px #213b5020;
+}
+.frame-health,.desktop-quality {
+  display:inline-flex;align-items:center;min-height:24px;padding:2px 9px;
+  border-radius:8px;background:var(--surface);color:var(--muted);font-size:12px;
+}
+.frame-health {position:absolute;top:10px;left:10px;pointer-events:none;gap:8px;}
+.frame-health button {pointer-events:auto;border:0;background:transparent;color:inherit;text-decoration:underline;}
+.desktop-view .desktop-toolbar,.desktop-view .computer-mode-bar {backdrop-filter:none;}
+.desktop-view .desktop-screen-wrap {contain:paint;}
+@media (max-width:699px) {.language-toggle {min-height:44px;}}
+.load-history {
+  display:block;margin:0 auto 18px;padding:7px 13px;min-height:36px;
+  color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:10px;
+}

@@ -1,3 +1,4 @@
+import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { InteractiveImage } from "./InteractiveImage";
 import { RemoteDesktop } from "./RemoteDesktop";
@@ -57,10 +58,10 @@ type Props = {
 };
 const actionLabel = (args: Approval["args"]) =>
   args.action === "press"
-    ? `按下元素 ${args.index}`
+    ? ui("按下元素 {0}", args.index)
     : args.action === "setValue"
-      ? `填写「${args.value || ""}」`
-      : `按 ${args.key || ""} 键`;
+      ? ui("填写「{0}」", args.value || "")
+      : ui("按 {0} 键", args.key || "");
 export function MacWorkspace({
   fullAccess = true,
   lease,
@@ -135,7 +136,7 @@ export function MacWorkspace({
   const belongs = !!lease.app && lease.threadId === selected;
   const live = belongs && stream?.status === "live";
   const appName =
-    apps.find((a) => a.id === lease.app)?.name || lease.app || "Mac 应用";
+    apps.find((a) => a.id === lease.app)?.name || lease.app || ui("Mac 应用");
   const [visible, setVisible] = useState(!document.hidden);
   useEffect(() => {
     if (lease.health) setHealth(lease.health);
@@ -216,18 +217,22 @@ export function MacWorkspace({
   }
   const source =
     belongs && visible && workspaceVisible && view === "app"
-      ? `/v1/mac/stream?threadId=${encodeURIComponent(selected)}&app=${encodeURIComponent(lease.app!)}&retry=${retry}`
+      ? `/v1/mac/frame?threadId=${encodeURIComponent(selected)}&app=${encodeURIComponent(lease.app!)}&epoch=${lease.epoch}&retry=${retry}`
       : undefined;
   return (
     <>
-      <div className="computer-mode-bar" role="group" aria-label="电脑共享范围">
+      <div
+        className="computer-mode-bar"
+        role="group"
+        aria-label={ui("电脑共享范围")}
+      >
         <button
           aria-pressed={view === "desktop"}
           disabled={!!pending}
           onClick={() => void chooseView("desktop")}
         >
           <Icon name="monitor" size={17} />
-          整个桌面
+          {ui("整个桌面")}
         </button>
         <button
           aria-pressed={view === "app"}
@@ -235,13 +240,13 @@ export function MacWorkspace({
           onClick={() => void chooseView("app")}
         >
           <Icon name="monitor" size={17} />
-          单个 App
+          {ui("单个 App")}
         </button>
       </div>
       <section
         className="computer desktop-primary"
         style={{ display: view === "desktop" ? "flex" : "none" }}
-        aria-label="电脑工作区"
+        aria-label={ui("电脑工作区")}
       >
         <RemoteDesktop
           embedded
@@ -256,19 +261,19 @@ export function MacWorkspace({
         />
       </section>
       {view === "app" && (
-        <section className="computer" aria-label="Codex 应用连接设置">
+        <section className="computer" aria-label={ui("Codex 应用连接设置")}>
           <div className="workspace-top">
             <div className="workspace-title">
               <span className={"stream-dot " + (live ? "live" : "")} />
-              <strong>{belongs ? appName : "你的 Mac"}</strong>
+              <strong>{belongs ? appName : ui("你的 Mac")}</strong>
               <span className="stream-badge">
                 {!belongs
-                  ? "选择应用"
+                  ? ui("选择应用")
                   : live
-                    ? "实时串流"
+                    ? ui("实时串流")
                     : stream?.status === "connecting"
-                      ? "正在连接"
-                      : "画面已断开"}
+                      ? ui("正在连接")
+                      : ui("画面已断开")}
               </span>
             </div>
             <div>
@@ -276,8 +281,8 @@ export function MacWorkspace({
                 className="icon-button"
                 onClick={() => showSettings(!settings)}
                 aria-expanded={settings}
-                aria-label="应用与权限"
-                title="应用与权限"
+                aria-label={ui("应用与权限")}
+                title={ui("应用与权限")}
               >
                 <Icon name="settings" size={18} />
               </button>
@@ -288,7 +293,7 @@ export function MacWorkspace({
                     disabled={!!pending}
                     onClick={() => void control("agent")}
                   >
-                    交给 Codex
+                    {ui("交给 Codex")}
                   </button>
                 )}
               {lease.app && (
@@ -306,7 +311,7 @@ export function MacWorkspace({
                     })
                   }
                 >
-                  {pending === "disconnect" ? "正在断开…" : "断开窗口"}
+                  {pending === "disconnect" ? ui("正在断开…") : ui("断开窗口")}
                 </button>
               )}
             </div>
@@ -315,7 +320,7 @@ export function MacWorkspace({
           {settings && (
             <div className="mac-setup">
               <div className="setup-heading">
-                <strong>连接本机应用</strong>
+                <strong>{ui("连接本机应用")}</strong>
                 <button
                   disabled={!!pending}
                   onClick={() =>
@@ -330,16 +335,16 @@ export function MacWorkspace({
                     })
                   }
                 >
-                  刷新列表
+                  {ui("刷新列表")}
                 </button>
               </div>
               <div className="app-picker">
                 <select
-                  aria-label="选择 Mac 应用"
+                  aria-label={ui("选择 Mac 应用")}
                   value={choice}
                   onChange={(e) => setChoice(e.target.value)}
                 >
-                  <option value="">选择一个已打开的应用</option>
+                  <option value="">{ui("选择一个已打开的应用")}</option>
                   {apps.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -366,24 +371,24 @@ export function MacWorkspace({
                   }
                 >
                   {pending === "bind"
-                    ? "正在连接…"
+                    ? ui("正在连接…")
                     : belongs && choice === lease.app
-                      ? "重新连接"
-                      : "连接应用"}
+                      ? ui("重新连接")
+                      : ui("连接应用")}
                 </button>
               </div>
               {windows.length > 0 && (
                 <select
                   className="window-picker"
-                  aria-label="选择应用窗口"
+                  aria-label={ui("选择应用窗口")}
                   value={windowId || ""}
                   onChange={(e) => setWindowId(Number(e.target.value))}
                 >
                   {windows.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.title || "未命名窗口"}
+                      {w.title || ui("未命名窗口")}
                       {w.title.includes("Skyrail")
-                        ? "（当前工作台，会出现镜像）"
+                        ? ui("（当前工作台，会出现镜像）")
                         : ""}
                     </option>
                   ))}
@@ -392,12 +397,16 @@ export function MacWorkspace({
               {health && (
                 <div className="permission-status">
                   <span>
-                    屏幕录制 {health.screenRecording ? "✓" : "未授权"}
+                    {ui("屏幕录制")}
+                    {health.screenRecording ? "✓" : ui("未授权")}
                   </span>
-                  <span>辅助功能 {health.accessibility ? "✓" : "未授权"}</span>
-                  {health.locked && <span>Mac 已锁屏</span>}
+                  <span>
+                    {ui("辅助功能")}
+                    {health.accessibility ? "✓" : ui("未授权")}
+                  </span>
+                  {health.locked && <span>{ui("Mac 已锁屏")}</span>}
                   {health.activeDisplays === 0 && (
-                    <span>显示器已休眠 / 不可用</span>
+                    <span>{ui("显示器已休眠 / 不可用")}</span>
                   )}
                   {(!health.accessibility || !health.screenRecording) && (
                     <button
@@ -407,29 +416,36 @@ export function MacWorkspace({
                         )
                       }
                     >
-                      前往授权
+                      {ui("前往授权")}
                     </button>
                   )}
                 </div>
               )}
               <p className="setup-help">
                 {health?.locked
-                  ? "请返回整台 Mac 页手动解锁，再继续应用操作。"
-                  : "只共享所选应用的窗口。接管后，可直接在画面里点击、拖动、滚动和输入。"}
+                  ? ui("请返回整台 Mac 页手动解锁，再继续应用操作。")
+                  : ui(
+                      "只共享所选应用的窗口。接管后，可直接在画面里点击、拖动、滚动和输入。",
+                    )}
               </p>
             </div>
           )}
           {error && (
             <div className="workspace-error" role="alert">
               {error}
-              <button onClick={() => setError("")} aria-label="关闭错误提示">
+              <button
+                onClick={() => setError("")}
+                aria-label={ui("关闭错误提示")}
+              >
                 ×
               </button>
             </div>
           )}
           {belongs && lease.frame?.windowTitle?.includes("Skyrail") && (
             <div className="mirror-notice">
-              正在共享工作台自身，会出现镜像。可在“应用与权限”中改选其他窗口。
+              {ui(
+                "正在共享工作台自身，会出现镜像。可在“应用与权限”中改选其他窗口。",
+              )}
             </div>
           )}
           <div className="live-viewport">
@@ -437,6 +453,7 @@ export function MacWorkspace({
               <>
                 <InteractiveImage
                   src={source}
+                  onRetry={() => setRetry((value) => value + 1)}
                   name={appName}
                   enabled={
                     belongs &&
@@ -454,19 +471,19 @@ export function MacWorkspace({
                   visible={workspaceVisible && view === "app"}
                   takeControl={() => void control("human")}
                 />
-                {(!live || !visible) && (
+                {(!visible || stream?.error) && (
                   <div className="stream-overlay">
                     <span className="stream-symbol">
                       <Icon name="monitor" size={34} />
                     </span>
                     <h2>
                       {!visible
-                        ? "已暂停观看"
+                        ? ui("已暂停观看")
                         : stream?.status === "disconnected"
-                          ? "画面连接已断开"
-                          : "正在连接窗口…"}
+                          ? ui("画面连接已断开")
+                          : ui("正在连接窗口…")}
                     </h2>
-                    <p>{stream?.error || "首次画面到达后会自动显示。"}</p>
+                    <p>{stream?.error || ui("首次画面到达后会自动显示。")}</p>
                     <button
                       className="primary"
                       onClick={() => {
@@ -474,7 +491,7 @@ export function MacWorkspace({
                         setRetry((n) => n + 1);
                       }}
                     >
-                      重新连接画面
+                      {ui("重新连接画面")}
                     </button>
                   </div>
                 )}
@@ -486,25 +503,25 @@ export function MacWorkspace({
                 </span>
                 <h2>
                   {health?.locked
-                    ? "Mac 当前已锁屏"
+                    ? ui("Mac 当前已锁屏")
                     : lease.app
-                      ? "这台电脑属于另一段对话"
-                      : "把 Mac 窗口带进对话"}
+                      ? ui("这台电脑属于另一段对话")
+                      : ui("把 Mac 窗口带进对话")}
                 </h2>
                 <p>
                   {health?.locked
-                    ? "请返回整台 Mac 页手动解锁，再继续应用操作。"
+                    ? ui("请返回整台 Mac 页手动解锁，再继续应用操作。")
                     : lease.app
-                      ? "切回原对话继续观看，或为当前对话连接应用。"
-                      : "选择应用后，画面会持续更新。收起面板只停止观看。"}
+                      ? ui("切回原对话继续观看，或为当前对话连接应用。")
+                      : ui("选择应用后，画面会持续更新。收起面板只停止观看。")}
                 </p>
                 {lease.threadId && (
                   <button onClick={() => switchThread(lease.threadId!)}>
-                    切回对应对话
+                    {ui("切回对应对话")}
                   </button>
                 )}
                 <button className="primary" onClick={() => showSettings(true)}>
-                  选择应用
+                  {ui("选择应用")}
                 </button>
               </div>
             )}
@@ -514,7 +531,7 @@ export function MacWorkspace({
             .map((a) => (
               <div className="approval" key={a.id}>
                 <div>
-                  <strong>Codex 请求操作</strong>
+                  <strong>{ui("Codex 请求操作")}</strong>
                   <p>{actionLabel(a.args)}</p>
                 </div>
                 <div>
@@ -526,7 +543,7 @@ export function MacWorkspace({
                       })
                     }
                   >
-                    拒绝
+                    {ui("拒绝")}
                   </button>
                   <button
                     className="primary"
@@ -537,14 +554,14 @@ export function MacWorkspace({
                       })
                     }
                   >
-                    允许本次
+                    {ui("允许本次")}
                   </button>
                 </div>
               </div>
             ))}
           {belongs && settings && !fullAccess && (
             <div className="confirmation-mode">
-              <label htmlFor="operation-mode">操作确认</label>
+              <label htmlFor="operation-mode">{ui("操作确认")}</label>
               <select
                 id="operation-mode"
                 value={lease.approvalMode || "ask"}
@@ -563,13 +580,15 @@ export function MacWorkspace({
                   );
                 }}
               >
-                <option value="ask">每次操作确认</option>
-                <option value="allow_session">本次连接允许全部操作</option>
+                <option value="ask">{ui("每次操作确认")}</option>
+                <option value="allow_session">
+                  {ui("本次连接允许全部操作")}
+                </option>
               </select>
               <small>
                 {lease.approvalMode === "allow_session"
-                  ? "全部操作已允许 · 换应用或断开后失效"
-                  : "可在授权卡中一次允许后续操作"}
+                  ? ui("全部操作已允许 · 换应用或断开后失效")
+                  : ui("可在授权卡中一次允许后续操作")}
               </small>
             </div>
           )}

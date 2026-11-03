@@ -84,6 +84,12 @@ node scripts/local-files.mjs probe '/absolute/path/to/document.docx'
 
 Chrome 扩展“Allow access to file URLs”只限制自动化测试选择本地文件；用户通过系统选择器手动选图或粘贴不依赖该测试权限。
 
+## 弱网或画面中断
+
+单应用一次请求一帧最新画面。传输变慢或超时后自动降档，持续稳定后逐步恢复清晰度。画面角标显示当前画质或恢复状态。连续失败而暂停后，可点「重新连接」。整桌面向 macOS 屏幕共享发送画质和压缩偏好，实际效果取决于服务端支持的编码。
+
+已有 macOS 授权的安装可运行 `npm run setup:mac -- --capture-only` 单独构建采集程序，然后重启本地服务。整包重建可能需要重新授予 macOS 权限。
+
 ---
 
 [返回文档中心](docs/README.zh-CN.md)

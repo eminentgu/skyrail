@@ -1,3 +1,4 @@
+import { getLanguage, t as ui } from "./i18n";
 import React from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -38,19 +39,19 @@ function CopyReply({ text }: { text: string }) {
   return (
     <button
       className="message-copy"
-      aria-label="复制 Codex 回复"
+      aria-label={ui("复制 Codex 回复")}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
-          setState("已复制");
+          setState(ui("已复制"));
         } catch {
-          setState("复制未成功");
+          setState(ui("复制未成功"));
         }
         setTimeout(() => setState(""), 2000);
       }}
     >
-      <Icon name={state === "已复制" ? "check" : "copy"} size={14} />
-      {state || "复制回复"}
+      <Icon name={state === ui("已复制") ? "check" : "copy"} size={14} />
+      {state || ui("复制回复")}
     </button>
   );
 }
@@ -75,50 +76,59 @@ function ApprovalCard({
   };
   const description =
     approval.kind === "runtime"
-      ? approval.args.value || "确认本次命令 / 文件操作"
+      ? approval.args.value || ui("确认本次命令 / 文件操作")
       : application
-        ? `打开 ${approval.app}，连接它的窗口，并让 Codex 在当前对话中观察与操作。`
+        ? ui(
+            "打开 {0}，连接它的窗口，并让 Codex 在当前对话中观察与操作。",
+            approval.app,
+          )
         : approval.args.action === "press"
-          ? `点击控件 ${approval.args.index}`
+          ? ui("点击控件 {0}", approval.args.index)
           : approval.args.action === "setValue"
-            ? `填写：${approval.args.value}`
-            : `按下 ${approval.args.key}`;
+            ? ui("填写：{0}", approval.args.value)
+            : ui("按下 {0}", approval.args.key);
   return (
     <div
       className="chat-approval"
       role="group"
-      aria-label={application ? "应用访问确认" : "电脑操作确认"}
+      aria-label={application ? ui("应用访问确认") : ui("电脑操作确认")}
     >
       <div className="approval-heading">
         <span>◈</span>
         <strong>
           {approval.kind === "runtime"
-            ? "命令与文件权限确认"
+            ? ui("命令与文件权限确认")
             : application
-              ? "允许使用这个应用？"
-              : "确认这次电脑操作"}
+              ? ui("允许使用这个应用？")
+              : ui("确认这次电脑操作")}
         </strong>
       </div>
       <p>{description}</p>
       {application && (
         <small>
-          可以单次确认，也可以允许此次连接中的全部操作；换应用或断开后自动失效。
+          {ui(
+            "可以单次确认，也可以允许此次连接中的全部操作；换应用或断开后自动失效。",
+          )}
         </small>
       )}
       {error && <p role="alert">{error}</p>}
       <div className="approval-buttons">
         <button disabled={pending} onClick={() => act(false)}>
-          拒绝
+          {ui("拒绝")}
         </button>
         <button disabled={pending} onClick={() => act(true, true)}>
-          本次连接全部允许
+          {ui("本次连接全部允许")}
         </button>
         <button
           className="primary"
           disabled={pending}
           onClick={() => act(true)}
         >
-          {pending ? "正在处理…" : application ? "允许并连接" : "允许本次"}
+          {pending
+            ? ui("正在处理…")
+            : application
+              ? ui("允许并连接")
+              : ui("允许本次")}
         </button>
       </div>
     </div>
@@ -142,7 +152,7 @@ export function Conversation({
       {groupMessages(messages).map((m) => {
         const approval = approvals.find((a) => "tool:" + a.id === m.id);
         const time = m.createdAt
-          ? new Date(m.createdAt).toLocaleTimeString("zh-HK", {
+          ? new Date(m.createdAt).toLocaleTimeString(getLanguage(), {
               hour: "2-digit",
               minute: "2-digit",
             })
@@ -160,22 +170,22 @@ export function Conversation({
                         ? "◈"
                         : "◌"}
                 </span>
-                <strong>{m.text}</strong>
+                <strong>{ui(m.text)}</strong>
                 <span>
                   {m.status === "waiting_approval"
-                    ? "等待确认"
+                    ? ui("等待确认")
                     : m.status === "completed"
-                      ? "已完成"
+                      ? ui("已完成")
                       : m.status === "failed"
-                        ? "未完成"
-                        : "进行中"}
+                        ? ui("未完成")
+                        : ui("进行中")}
                 </span>
               </div>
               {approval && <ApprovalCard approval={approval} decide={decide} />}
               <details>
-                <summary>查看详情</summary>
+                <summary>{ui("查看详情")}</summary>
                 <p>
-                  {m.app || "本机 Mac"}
+                  {m.app || ui("本机 Mac")}
                   {m.error ? " · " + m.error : ""}
                 </p>
               </details>
@@ -187,9 +197,9 @@ export function Conversation({
               <span aria-hidden="true" className={"avatar " + m.role}>
                 {m.role === "user" ? "●" : <Icon name="code" size={15} />}
               </span>
-              <span>{m.role === "user" ? "你" : "Codex"}</span>
+              <span>{m.role === "user" ? ui("你") : "Codex"}</span>
               <time>{time}</time>
-              {m.pending && <small>发送结果待确认</small>}
+              {m.pending && <small>{ui("发送结果待确认")}</small>}
             </div>
             <div className="message-body">
               <Markdown
@@ -246,12 +256,15 @@ export function Conversation({
                         }}
                       />
                     ) : (
-                      <span>[图片：{alt || "外部图片未加载"}]</span>
+                      <span>
+                        {ui("[图片：")}
+                        {alt || ui("外部图片未加载")}]
+                      </span>
                     );
                   },
                 }}
               >
-                {m.text || "正在生成…"}
+                {m.text || ui("正在生成…")}
               </Markdown>
             </div>
             {!!m.attachments?.length && (

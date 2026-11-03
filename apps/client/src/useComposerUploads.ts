@@ -1,3 +1,4 @@
+import { t as ui } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import { type Attachment } from "./FilesPanel";
 export function useComposerUploads({
@@ -47,11 +48,11 @@ export function useComposerUploads({
   async function upload(files: File[]) {
     if (active.current || !files.length) return;
     if (!token) {
-      onError("正在连接，请稍后再添加图片");
+      onError(ui("正在连接，请稍后再添加图片"));
       return;
     }
     if (files.length + attachmentCount > 20) {
-      onError("每条消息最多添加 20 个文件");
+      onError(ui("每条消息最多添加 20 个文件"));
       return;
     }
     active.current = true;
@@ -64,9 +65,9 @@ export function useComposerUploads({
       for (const file of files) {
         if (epoch !== generation.current) break;
         if (file.size > 50 * 1024 * 1024)
-          throw Error(`${file.name} 超过 50 MB`);
+          throw Error(ui("{0} 超过 50 MB", file.name));
         if (file.type.startsWith("image/") && file.size > 20 * 1024 * 1024)
-          throw Error(`${file.name} 超过单张图片 20 MB 上限`);
+          throw Error(ui("{0} 超过单张图片 20 MB 上限", file.name));
         const uploaded = await new Promise<Attachment>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           request.current = xhr;
@@ -75,7 +76,7 @@ export function useComposerUploads({
             "/v1/files/upload?" +
               new URLSearchParams({
                 threadId,
-                name: file.name || "粘贴图片.png",
+                name: file.name || ui("粘贴图片.png"),
               }),
           );
           xhr.setRequestHeader("X-Skyrail-Token", token);
@@ -84,7 +85,7 @@ export function useComposerUploads({
           xhr.upload.onprogress = (e) => {
             if (alive.current && epoch === generation.current)
               setProgress(
-                `${file.name} · ${e.lengthComputable ? Math.round((e.loaded / e.total) * 100) + "%" : "上传中"}`,
+                `${file.name} · ${e.lengthComputable ? Math.round((e.loaded / e.total) * 100) + "%" : ui("上传中")}`,
               );
           };
           xhr.onload = () => {
@@ -92,14 +93,15 @@ export function useComposerUploads({
               const d = JSON.parse(xhr.responseText);
               xhr.status >= 200 && xhr.status < 300
                 ? resolve({ ...d, threadId })
-                : reject(Error(d.message || "上传失败"));
+                : reject(Error(d.message || ui("上传失败")));
             } catch {
-              reject(Error("上传响应无效"));
+              reject(Error(ui("上传响应无效")));
             }
           };
-          xhr.onerror = () => reject(Error("网络中断，文件未添加，请重试"));
-          xhr.ontimeout = () => reject(Error("上传超时，文件未添加，请重试"));
-          xhr.onabort = () => reject(Error("上传已取消"));
+          xhr.onerror = () => reject(Error(ui("网络中断，文件未添加，请重试")));
+          xhr.ontimeout = () =>
+            reject(Error(ui("上传超时，文件未添加，请重试")));
+          xhr.onabort = () => reject(Error(ui("上传已取消")));
           xhr.send(file);
         });
         if (epoch !== generation.current || !alive.current) break;
@@ -111,7 +113,7 @@ export function useComposerUploads({
           !uploaded.mediaType
         )
           onError(
-            "该图片已作为文件添加；直接看图请使用 PNG、JPEG、WebP 或 GIF。",
+            ui("该图片已作为文件添加；直接看图请使用 PNG、JPEG、WebP 或 GIF。"),
           );
       }
     } catch (e) {

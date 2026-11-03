@@ -3,7 +3,7 @@ import {randomBytes,createHash,createHmac,timingSafeEqual} from 'node:crypto';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {rejectUpgrade} from '../../packages/macos/desktop.mjs';
-import {loginPage} from './login.mjs';
+import {renderLogin} from './login.mjs';
 const root=path.resolve(import.meta.dirname,'../..');const dataRoot=process.env.SKYRAIL_GATEWAY_DATA||path.join(root,'.data');await mkdir(dataRoot,{recursive:true});
 const publicHost=process.env.SKYRAIL_REMOTE_HOST;
 if(!publicHost||!/^[a-z0-9.-]+$/i.test(publicHost))throw Error('Set SKYRAIL_REMOTE_HOST to your HTTPS hostname, without scheme or port');
@@ -13,21 +13,28 @@ try{password=(await readFile(credentialFile,'utf8')).trim()}catch(e){if(e.code!=
 const key=randomBytes(32);const digest=v=>createHash('sha256').update(v).digest();const same=(a,b)=>timingSafeEqual(digest(a),digest(b));
 const sign=value=>createHmac('sha256',key).update(value).digest('base64url');
 function authenticated(req){const value=req.headers.cookie?.split('; ').find(c=>c.startsWith('__Host-skyrail_access='))?.split('=').slice(1).join('=');if(!value)return false;const [time,signature]=value.split('.');return Number(time)>Date.now()&&!!signature&&same(signature,sign(time))}
-const html=loginPage;
 const attempts=new Map();
 const server=http.createServer(async(req,res)=>{
  const host=req.headers.host;if(host!==publicHost&&host!==`127.0.0.1:${port}`){res.writeHead(403);return res.end('Invalid host')}
  res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');
+ const preference = req.headers.cookie?.match(/(?:^|;\s*)skyrail_language=(en|zh-CN)(?:;|$)/)?.[1];
+ let language = preference || (/^en\b/i.test(req.headers['accept-language'] || '') ? 'en' : 'zh-CN');
+ if (req.method === 'GET' && (req.url === '/?lang=en' || req.url === '/?lang=zh-CN')) {
+  language = req.url.slice(7);
+  res.setHeader('Set-Cookie', 'skyrail_language=' + language + '; Path=/; SameSite=Lax; Max-Age=31536000');
+  res.writeHead(303, {Location:'/'});
+  return res.end();
+ }
  if(req.url==='/_health'){res.writeHead(200,{'Content-Type':'application/json'});return res.end('{"status":"ready"}')}
  if(req.headers.origin&&req.headers.origin!==`https://${publicHost}`&&req.headers.origin!==`http://127.0.0.1:${port}`){res.writeHead(403);return res.end('Invalid origin')}
  if(req.url==='/_access/login'&&req.method==='POST'){
   const ip=req.headers['cf-connecting-ip']||req.socket.remoteAddress;const now=Date.now();let entry=attempts.get(ip);if(!entry||now-entry.since>60000)entry={since:now,count:0};attempts.set(ip,entry);if(++entry.count>10){res.writeHead(429);return res.end('Too many attempts')}
   let body='';for await(const part of req){body+=part;if(body.length>4096){res.writeHead(413);return res.end('Too large')}}
   const supplied=new URLSearchParams(body).get('password')||'';
-  if(!same(supplied,password)){res.writeHead(401,{'Content-Type':'text/html; charset=utf-8'});return res.end(html.replace('<p>登录后访问你的 Mac 工作台。</p>','<p role="alert">密码不正确，请使用 Mac 上保存的远程访问密码。</p>'))}
+  if(!same(supplied,password)){res.writeHead(401,{'Content-Type':'text/html; charset=utf-8'});return res.end(renderLogin(language, true))}
   const time=String(Date.now()+24*60*60*1000);res.setHeader('Set-Cookie',`__Host-skyrail_access=${time}.${sign(time)}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=86400`);res.writeHead(303,{Location:'/'});return res.end();
  }
- if(!authenticated(req)){if(req.url.startsWith('/v1/')){res.writeHead(401,{'Content-Type':'application/json'});return res.end('{"message":"请先登录 Skyrail 远程入口"}')};res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"});return res.end(html)}
+ if(!authenticated(req)){if(req.url.startsWith('/v1/')){res.writeHead(401,{'Content-Type':'application/json'});return res.end('{"message":"请先登录 Skyrail 远程入口"}')};res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"});return res.end(renderLogin(language))}
  const headers={...req.headers,host:`127.0.0.1:${upstreamPort}`};if(headers.origin)headers.origin=`http://127.0.0.1:${upstreamPort}`;delete headers['x-forwarded-host'];
  const proxy=http.request({hostname:'127.0.0.1',port:upstreamPort,path:req.url,method:req.method,headers},upstream=>{res.writeHead(upstream.statusCode,upstream.headers);res.flushHeaders();upstream.pipe(res)});
  proxy.on('error',()=>{if(!res.headersSent)res.writeHead(502,{'Content-Type':'text/plain; charset=utf-8'});res.end('Skyrail 本地服务未启动，请在 Mac 上启动工作台。')});res.on('close',()=>proxy.destroy());req.pipe(proxy);
