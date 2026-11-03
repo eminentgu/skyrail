@@ -34,6 +34,10 @@ Use repository **Settings → Pages → Source → GitHub Actions**. The Pages w
 
 The artifact includes only the static output. Publishing uses GitHub's Pages artifact and deployment actions, with deployment permissions limited to that job. Existing required main checks remain in force; CI also builds and validates the docs.
 
+Do not select **Deploy from a branch → main / (root)**: the repository root `index.html` is a Vite development entry, so publishing it directly causes `/apps/client/src/main.tsx` to return 404. After switching Source, select `main` under **Actions → Documentation → Run workflow** to redeploy.
+
+Configure custom domains in Pages settings. The workflow reads the actual Pages URL before building asset paths, canonical links and the sitemap, supporting both project subpaths and custom-domain roots.
+
 ## Verify before publishing
 
 ```sh
