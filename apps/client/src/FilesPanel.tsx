@@ -5,6 +5,7 @@ export type Attachment = {
   path: string;
   name: string;
   size: number;
+  mediaType?: string | null;
   threadId: string;
 };
 export const downloadUrl = (file: Attachment) =>
@@ -14,7 +15,13 @@ export const downloadUrl = (file: Attachment) =>
     root: file.root,
     path: file.path,
   });
-type Entry = { name: string; path: string; directory: boolean; size: number };
+type Entry = {
+  name: string;
+  path: string;
+  directory: boolean;
+  size: number;
+  mediaType?: string | null;
+};
 export function FilesPanel({
   selected,
   token,

@@ -2,6 +2,7 @@ import React from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadUrl, type Attachment } from "./FilesPanel";
+import { MessageAttachments, Picture } from "./Attachments";
 import { Icon } from "./Icon";
 export type ChatMessage = {
   id: string;
@@ -224,26 +225,37 @@ export function Conversation({
                         </a>
                       );
                     })(),
-                  img: ({ alt }) => <span>[图片：{alt || "未加载"}]</span>,
+                  img: ({ src, alt }) => {
+                    const href = String(src || "");
+                    const local =
+                      cwd && href.startsWith(cwd + "/")
+                        ? href.slice(cwd.length + 1)
+                        : !href.startsWith("/") &&
+                            !/^[a-z][a-z0-9+.-]*:/i.test(href) &&
+                            !href.startsWith("#")
+                          ? href
+                          : null;
+                    return local && threadId ? (
+                      <Picture
+                        file={{
+                          threadId,
+                          root: "workspace",
+                          path: local,
+                          name: alt || local,
+                          size: 0,
+                        }}
+                      />
+                    ) : (
+                      <span>[图片：{alt || "外部图片未加载"}]</span>
+                    );
+                  },
                 }}
               >
                 {m.text || "正在生成…"}
               </Markdown>
             </div>
             {!!m.attachments?.length && (
-              <div className="message-files">
-                {m.attachments.map((file) => (
-                  <a
-                    key={file.root + file.path}
-                    href={downloadUrl(file)}
-                    download={file.name}
-                  >
-                    <Icon name="file" size={16} />
-                    {file.name}
-                    <Icon name="download" size={15} />
-                  </a>
-                ))}
-              </div>
+              <MessageAttachments files={m.attachments} />
             )}
             {m.role === "assistant" && m.text && <CopyReply text={m.text} />}
           </article>

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
+import { Picture, isPicture } from "./Attachments";
+import { useComposerUploads } from "./useComposerUploads";
 import { SessionConnection } from "./SessionConnection";
 import { FilesPanel, type Attachment } from "./FilesPanel";
 import { PermissionSettings } from "./PermissionSettings";
@@ -281,6 +283,7 @@ function App() {
       (!text.trim() && !attachments.length) ||
       running ||
       busy ||
+      imageUploads.uploading ||
       state.runtime !== "connected"
     )
       return;
@@ -303,6 +306,24 @@ function App() {
       }
     });
   }
+  const imagePicker = React.useRef<HTMLInputElement>(null);
+  function addAttachment(file: Attachment) {
+    if (selectedRef.current === file.threadId)
+      setAttachments((a) =>
+        a.some((f) => f.root === file.root && f.path === file.path)
+          ? a
+          : [...a, file],
+      );
+  }
+  const imageUploads = useComposerUploads({
+    token,
+    selected,
+    attachmentCount: attachments.length,
+    ensureThread: create,
+    currentThread: () => selectedRef.current,
+    attach: addAttachment,
+    onError: setError,
+  });
   const writerBusy =
     !!thread?.codexId &&
     (thread.errorCode === "writer_busy" ||
@@ -426,7 +447,19 @@ function App() {
         </div>
       )}
       <main className={`${panel ? "split" : ""} ${full ? "full" : ""}`}>
-        <section className="chat" aria-label="Codex 对话">
+        <section
+          className="chat"
+          aria-label="Codex 对话"
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+          }}
+          onDrop={(e) => {
+            if (e.dataTransfer.files.length) {
+              e.preventDefault();
+              void imageUploads.upload(Array.from(e.dataTransfer.files));
+            }
+          }}
+        >
           <div className="conversation-heading">
             <div className="conversation-identity">
               <span className="codex-symbol">
@@ -670,8 +703,12 @@ function App() {
               <div className="draft-files" aria-label="待发送文件">
                 {attachments.map((file) => (
                   <span key={file.root + file.path}>
-                    <Icon name="file" size={16} />
-                    {file.name}
+                    {isPicture(file) ? (
+                      <Picture file={file} compact />
+                    ) : (
+                      <Icon name="file" size={16} />
+                    )}
+                    <span>{file.name}</span>
                     <button
                       aria-label={"移除附件：" + file.name}
                       onClick={() =>
@@ -706,11 +743,38 @@ function App() {
             )}
             <form
               className="composer"
+              onPaste={(e) => {
+                const files = Array.from(e.clipboardData.files);
+                if (files.length) {
+                  e.preventDefault();
+                  void imageUploads.upload(files);
+                }
+              }}
               onSubmit={(e) => {
                 e.preventDefault();
                 send();
               }}
             >
+              <input
+                type="file"
+                ref={imagePicker}
+                hidden
+                multiple
+                accept="image/*"
+                aria-label="选择图片"
+                onChange={(e) => {
+                  void imageUploads.upload(Array.from(e.target.files || []));
+                  e.target.value = "";
+                }}
+              />
+              {imageUploads.uploading && (
+                <div className="image-upload-progress" role="status">
+                  {imageUploads.progress || "正在上传…"}
+                  <button type="button" onClick={imageUploads.cancel}>
+                    取消上传
+                  </button>
+                </div>
+              )}
               <textarea
                 ref={composerRef}
                 rows={1}
@@ -735,6 +799,16 @@ function App() {
                 }}
               />
               <div className="composer-tools">
+                <button
+                  className="composer-images"
+                  type="button"
+                  aria-label="添加图片"
+                  title="添加图片，可粘贴或拖入"
+                  disabled={imageUploads.uploading || !token}
+                  onClick={() => imagePicker.current?.click()}
+                >
+                  <Icon name="image" size={18} />
+                </button>
                 <button
                   className="composer-files"
                   type="button"
