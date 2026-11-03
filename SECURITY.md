@@ -8,6 +8,8 @@ Skyrail is an early 0.x project. Fixes target current main; there is no audited 
 
 Do not disclose exploitable details, remote passwords, cookies, tokens, conversations or desktop content in public issues. Prefer **Report a vulnerability** on the repository Security page if enabled. If unavailable, open an issue without exploit details asking the maintainer for a private contact route.
 
+![Permissions and their feature scope](docs/assets/permissions-en.svg)
+
 ## Trust boundaries
 
 - Skyrail operates a real Mac. OS permission grants are a separate step completed by the user. Missing GUI grants do not prevent UI/build/chat-only evaluation.

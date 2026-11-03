@@ -1,5 +1,7 @@
 # 原生 Mac 架构
 
+![Skyrail 模型应用工具与人工桌面两条通道](assets/architecture-zh.svg)
+
 ## 持续桌面与控制交接
 
 RFB 连接与输入所有权分离。交给 Codex 时保持同一个经过认证的 TCP / WebSocket 连接，客户端 viewOnly 与服务端 RFB 输入闸门同时生效；画面请求照常转发，键盘 / 指针 / 剪贴板 / 显示修改包整包丢弃，按下未释放的键鼠先释放。恢复人工控制需先等待旧模型窗口队列结束并撤销绑定，再打开输入闸门。真实关闭页面 / 断开仍会关闭连接，macOS RestoreMachineState 的行为需要系统设置单独控制。

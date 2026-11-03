@@ -6,6 +6,8 @@
 
 先完成[本地安装](GETTING-STARTED.zh-CN.md)。远程入口不能授予缺失的 macOS 权限，也不能让休眠中的电脑继续运行。
 
+![远程连接路径](assets/remote-path-zh.svg)
+
 ## 启动网关
 
 本地服务监听 `127.0.0.1:4317`，在另一终端启动密码网关：
@@ -48,6 +50,8 @@ launchctl bootout gui/$(id -u)/local.skyrail.gateway
 - `~/Library/LaunchAgents/local.skyrail.gateway.plist`
 
 如果配置过 tunnel，另行移除对应路由。停止 / 移除任务不会删除对话、上传文件、Codex 原生历史或系统隐私授权；按需分别保留或清理。
+
+![交接控制权时保留桌面串流](assets/control-handover-zh.svg)
 
 ## 休眠、锁屏与控制权
 

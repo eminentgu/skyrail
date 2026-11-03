@@ -6,6 +6,8 @@
 
 Run `npm run doctor` first. Missing GUI permissions still allow UI, build, JavaScript and chat-only testing. Report installation issues through [GitHub Issues](https://github.com/eminentgu/skyrail/issues), in English or Chinese. Include the commit/version, macOS, browser/device, target app, reproduction and expected/actual result. Security reports follow [SECURITY.md](SECURITY.md).
 
+![Permission map for diagnosing feature availability](docs/assets/permissions-en.svg)
+
 ## Install or launch fails
 
 Use Node.js 22.12+ and finish `npm ci` before running tests or starting the service. For managed-network certificate errors, see the system-CA instructions in the [setup guide](docs/GETTING-STARTED.md). Keep TLS verification enabled.

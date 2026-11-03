@@ -14,7 +14,10 @@
     "start": "node apps/local-service/server.mjs",
     "setup:mac": "sh scripts/build-macos.sh",
     "service:install": "node scripts/install-service.mjs",
-    "setup:session": "sh scripts/build-session-status.sh"
+    "setup:session": "sh scripts/build-session-status.sh",
+    "docs:build": "node scripts/build-docs.mjs",
+    "docs:preview": "node scripts/preview-docs.mjs",
+    "docs:check": "node --test tests/docs-site.test.mjs"
   },
   "dependencies": {
     "@novnc/novnc": "1.7.0",
@@ -29,6 +32,8 @@
     "@types/node": "22.19.1",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
+    "micromark": "4.0.3",
+    "micromark-extension-gfm": "3.0.0",
     "typescript": "5.9.3"
   },
   "license": "MIT",

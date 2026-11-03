@@ -11,6 +11,10 @@ Skyrail 是基于本地 Codex 的浏览器流式 Computer Use 工作台，在自
 > [!TIP]
 > 网页试用、测试和构建不需要 macOS GUI 权限。真实纯文字任务只需要本人已登录的 Codex CLI。
 
+![Skyrail 安装流程概览](assets/setup-flow-zh.svg)
+
+**[图解认识 Skyrail →](VISUAL-GUIDE.zh-CN.md)**
+
 ## 从这里开始
 
 | 你想做什么 | 对应指南 |
