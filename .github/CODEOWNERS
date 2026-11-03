@@ -1,0 +1,3 @@
+# Maintenance ownership; GitHub repository access controls who may push/merge.
+# Required Code Owner review is intentionally off for single-maintainer PRs.
+* @eminentgu
