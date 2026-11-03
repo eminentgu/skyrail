@@ -6,6 +6,8 @@
 
 First complete [local setup](GETTING-STARTED.md). Remote access does not grant missing macOS permissions or make a sleeping Mac available.
 
+![Remote connection path](assets/remote-path-en.svg)
+
 ## Start the gateway
 
 The local service listens on `127.0.0.1:4317`. In a separate terminal start the password gateway:
@@ -48,6 +50,8 @@ A missing job may report that it is not loaded. To prevent startup on next login
 - `~/Library/LaunchAgents/local.skyrail.gateway.plist`
 
 Remove your own tunnel route separately if you configured one. Stopping/removing the jobs does not erase conversations, uploads, native Codex history or macOS privacy grants. Keep or remove those separately according to your needs.
+
+![Control handover keeps the desktop stream connected](assets/control-handover-en.svg)
 
 ## Sleep, lock and control ownership
 

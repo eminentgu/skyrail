@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/Node.js-22.12%2B-526c7c" alt="Node.js 22.12 or newer">
 </p>
 
-<p align="center"><a href="#本地试用">快速开始</a> · <a href="docs/README.zh-CN.md">文档中心</a> · <a href="docs/GETTING-STARTED.zh-CN.md">权限与测试</a> · <a href="https://github.com/eminentgu/skyrail/issues/new/choose">反馈问题</a></p>
+<p align="center"><a href="#本地试用">快速开始</a> · <a href="docs/README.zh-CN.md">文档中心</a> · <a href="docs/GETTING-STARTED.zh-CN.md">权限与测试</a> · <a href="https://github.com/eminentgu/skyrail/issues/new/choose">反馈问题</a> · <a href="https://eminentgu.github.io/skyrail/zh/">文档网站</a></p>
 
 ---
 
@@ -35,6 +35,8 @@
 </p>
 
 <p align="center"><sub>真实本地界面 · 当前产品界面为中文；文档提供中文与英文。</sub></p>
+
+**[图解认识 Skyrail →](docs/VISUAL-GUIDE.zh-CN.md)**
 
 ## 从对话到行动
 

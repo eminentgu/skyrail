@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/Node.js-22.12%2B-526c7c" alt="Node.js 22.12 or newer">
 </p>
 
-<p align="center"><a href="#try-it-locally">Quick start</a> · <a href="docs/README.md">Documentation</a> · <a href="docs/GETTING-STARTED.md">Permissions & testing</a> · <a href="https://github.com/eminentgu/skyrail/issues/new/choose">Report an issue</a></p>
+<p align="center"><a href="#try-it-locally">Quick start</a> · <a href="docs/README.md">Documentation</a> · <a href="docs/GETTING-STARTED.md">Permissions & testing</a> · <a href="https://github.com/eminentgu/skyrail/issues/new/choose">Report an issue</a> · <a href="https://eminentgu.github.io/skyrail/">Documentation website</a></p>
 
 ---
 
@@ -35,6 +35,8 @@
 </p>
 
 <p align="center"><sub>Actual local interface · The current product UI is in Chinese; documentation is available in English and Chinese.</sub></p>
+
+**[Take a visual tour →](docs/VISUAL-GUIDE.md)**
 
 ## From conversation to action
 

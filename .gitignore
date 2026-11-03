@@ -5,3 +5,4 @@ workspaces/*
 !workspaces/.gitkeep
 .env*
 .DS_Store
+docs-dist/

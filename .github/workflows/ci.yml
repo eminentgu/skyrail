@@ -21,6 +21,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npm run docs:build
       - name: Compile native Mac adapter
         if: runner.os == 'macOS'
         run: npm run setup:mac
