@@ -1,3 +1,4 @@
+import { getLanguage, t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 type Session = {
@@ -83,7 +84,7 @@ export function NativeSessions({
         name:
           session.project?.name ||
           session.cwd?.split("/").filter(Boolean).at(-1) ||
-          "其他会话",
+          ui("其他会话"),
         path: session.project?.path || session.cwd,
         items: [],
       };
@@ -101,12 +102,12 @@ export function NativeSessions({
         }}
       >
         <input
-          aria-label="搜索 Codex 会话"
-          placeholder="搜索项目中的对话"
+          aria-label={ui("搜索 Codex 会话")}
+          placeholder={ui("搜索项目中的对话")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button disabled={busy}>搜索</button>
+        <button disabled={busy}>{ui("搜索")}</button>
       </form>
       {error && (
         <p role="alert" className="error">
@@ -134,8 +135,10 @@ export function NativeSessions({
                 <button disabled={busy} onClick={() => void open(s.id)}>
                   <strong>{s.title}</strong>
                   <span>
-                    {s.linked ? "继续对话" : "打开对话"} ·{" "}
-                    {new Date(s.updatedAt * 1000).toLocaleDateString("zh-HK")}
+                    {s.linked ? ui("继续对话") : ui("打开对话")} ·{" "}
+                    {new Date(s.updatedAt * 1000).toLocaleDateString(
+                      getLanguage(),
+                    )}
                   </span>
                 </button>
               </div>
@@ -144,11 +147,11 @@ export function NativeSessions({
         </details>
       ))}
       {!items.length && !busy && !error && (
-        <p className="history-note">没有匹配的对话。</p>
+        <p className="history-note">{ui("没有匹配的对话。")}</p>
       )}
       {busy && (
         <p role="status" className="history-note">
-          正在读取项目和对话…
+          {ui("正在读取项目和对话…")}
         </p>
       )}
       {cursor && (
@@ -157,11 +160,11 @@ export function NativeSessions({
           disabled={busy}
           onClick={() => void load(query, cursor)}
         >
-          加载更多项目与对话
+          {ui("加载更多项目与对话")}
         </button>
       )}
       <p className="history-note project-note">
-        按项目目录归类，保留原 Codex 会话与工作目录。
+        {ui("按项目目录归类，保留原 Codex 会话与工作目录。")}
       </p>
     </div>
   );

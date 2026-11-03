@@ -1,3 +1,4 @@
+import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import {
   SurfaceGestures,
@@ -182,7 +183,7 @@ export function RemoteSurface({
       </div>
       <div
         className="remote-gesture-layer"
-        aria-label="远程画面操作区域"
+        aria-label={ui("远程画面操作区域")}
         onContextMenu={(e) => e.preventDefault()}
         onPointerDown={(e) => {
           if (!visible) return;

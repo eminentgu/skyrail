@@ -53,6 +53,8 @@
   </tr>
 </table>
 
+**Web languages and weak connections.** Use the language button in the Web header to switch between English and Chinese. The single-app stream prioritizes current frames and lowers resolution and JPEG quality as delivery slows. Full desktop requests lower JPEG quality from Screen Sharing when available.
+
 **Image chat:** select a picture, paste a screenshot, or drop files into the conversation. Preview before sending and open sent images at a larger size. PNG / JPEG / WebP / GIF reach Codex as native visual input (20 MiB per image; general files remain 50 MiB). [Image help](SUPPORT.md#image-chat).
 
 Skyrail does not include a model subscription or bundle the desktop app’s private computer-use engine.

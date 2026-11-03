@@ -2,6 +2,7 @@ import {EventEmitter} from 'node:events';
 import {spawn} from 'node:child_process';
 import {createInterface} from 'node:readline';
 import path from 'node:path';
+import {existsSync} from 'node:fs';
 import {MacBridge} from './index.mjs';
 
 export class FrameDecoder {
@@ -19,7 +20,11 @@ export class MacStream extends EventEmitter {
   this.state={status:'connecting',frames:0,fps:0,error:null,captureMode:'scstream'};this.latest=null;this.emit('change');
   this.began=this.measured=this.lastHeartbeat=Date.now();this.count=0;this.lastPublished=0;
   const decoder=new FrameDecoder();
-  const child=this.spawnNative(path.join(this.root,'.data/Skyrail Mac.app/Contents/MacOS/SkyrailMac'),['--stream',this.app,String(this.windowId)],{stdio:['ignore','pipe','pipe']});this.child=child;
+  const bundled = path.join(this.root, '.data/Skyrail Mac.app/Contents/MacOS/SkyrailMac');
+  const captureOnly = path.join(this.root, '.data/SkyrailCapture');
+  const executable = existsSync(captureOnly) ? captureOnly : bundled;
+  const child=this.spawnNative(executable,['--stream',this.app,String(this.windowId)],{stdio:['pipe','pipe','pipe']});this.child=child;this.profile=null;
+  child.stdin?.on('error',()=>{});
   const current=()=>this.generation===generation&&this.child===child;
   child.on('error',e=>{if(current())this.fallback(generation,e.message)});
   child.on('exit',()=>{if(current())this.fallback(generation,'原生视频进程已退出')});
@@ -29,7 +34,7 @@ export class MacStream extends EventEmitter {
    if(this.generation!==generation)return;
    if(this.child&&this.state.frames===0&&Date.now()-this.began>1500)this.fallback(generation,'原生视频未输出画面');
    else if(Date.now()-this.lastHeartbeat>12000)this.fail(generation,'窗口采集没有响应，请重新连接');
-   else this.emit('change');
+
   },500);
  }
  fallback(generation,reason){
@@ -42,33 +47,87 @@ export class MacStream extends EventEmitter {
   const capture=async()=>{
    const began=Date.now();
    try{
-    const result=await bridge.rpc('observe',{app:this.app,windowId:this.windowId});
+    const result=await bridge.rpc('observe',{app:this.app,windowId:this.windowId,videoQuality:this.profile ?? 1});
     if(this.generation!==generation||this.snapshot!==bridge)return;
-    if(!result.image?.startsWith('data:image/png;base64,'))throw Error('窗口没有返回有效画面');
-    const bytes=Buffer.from(result.image.slice('data:image/png;base64,'.length),'base64');
+    const prefix = /^data:(image\/(?:jpeg|png));base64,/.exec(result.image || '');
+    if (!prefix) throw Error('窗口没有返回有效画面');
+    const bytes=Buffer.from(result.image.slice(prefix[0].length),'base64');
     if(!bytes.length||bytes.length>16*1024*1024)throw Error('窗口画面超出采集大小限制');
-    this.frame(bytes,'image/png');
+    this.frame(bytes,prefix[1]);
     this.captureTimer=setTimeout(capture,Math.max(0,200-(Date.now()-began)));
    }catch(e){if(this.generation===generation&&this.snapshot===bridge)this.fail(generation,e.message)}
   };
   void capture();
  }
  frame(frame,mime){
-  this.latest=frame;this.latestType=mime;this.count++;this.state.frames++;this.state.status='live';this.state.error=null;this.state.lastFrameAt=this.lastHeartbeat=Date.now();
+  this.frameSequence=(this.frameSequence || 0)+1;this.latest=frame;this.latestType=mime;this.count++;this.state.frames++;this.state.status='live';this.state.error=null;this.state.lastFrameAt=this.lastHeartbeat=Date.now();
   for(const response of this.clients)this.write(response,frame,mime);
+  for(const response of this.samples?.keys() || [])this.deliver(response);
   if(Date.now()-this.measured>=1000){this.state.fps=Number((this.count*1000/(Date.now()-this.measured)).toFixed(1));this.count=0;this.measured=Date.now()}
   if(Date.now()-this.lastPublished>=1000||!this.lastPublished){this.lastPublished=Date.now();this.emit('change')}
  }
  fail(generation,message){if(this.generation!==generation)return;this.state={...this.state,status:'disconnected',error:message};this.stop(true);this.latest=null;this.emit('change')}
  write(response,frame,mime='image/jpeg'){if(response.destroyed||response.writableNeedDrain)return;response.write(`--skyrail-frame\r\nContent-Type: ${mime}\r\nContent-Length: ${frame.length}\r\n\r\n`);response.write(frame);response.write('\r\n')}
+ sample(response, level, after) {
+  clearTimeout(this.idleTimer);
+  this.idleTimer=null;
+  this.samples ??= new Map();
+  const timer = setTimeout(() => {
+   response.writeHead(204);
+   response.end();
+  }, 900);
+  this.samples.set(response, {level, timer});
+  response.once('close', () => {
+   clearTimeout(timer);
+   if (!this.samples.delete(response)) return;
+   this.idle();
+   this.emit('activity');
+  });
+  this.start();
+  this.emit('activity');
+  const quality = Math.min(...Array.from(this.samples.values(), sample => sample.level));
+  if (this.profile !== quality) {
+   this.profile = quality;
+   if (this.child?.stdin?.writable) this.child.stdin.write(quality + '\n');
+  }
+  if (this.latest && after !== this.frameSequence) this.deliver(response);
+ }
+ deliver(response) {
+  if (response.writableEnded || response.destroyed) return;
+  clearTimeout(this.samples.get(response)?.timer);
+  response.writeHead(200, {
+   'Content-Type': this.latestType,
+   'Content-Length': this.latest.length,
+   'X-Skyrail-Frame': String(this.frameSequence),
+  });
+  response.end(this.latest);
+ }
+ idle() {
+  if (this.clients.size || this.samples?.size) return;
+  clearTimeout(this.idleTimer);
+  this.idleTimer = setTimeout(() => {
+   this.stop();
+   this.state.status = 'disconnected';
+   this.emit('change');
+  }, 4500);
+ }
+ get viewing() { return this.clients.size > 0 || (this.samples?.size || 0) > 0 || !!this.idleTimer; }
  attach(response){
-  clearTimeout(this.idleTimer);response.writeHead(200,{'Content-Type':'multipart/x-mixed-replace; boundary=skyrail-frame','Cache-Control':'no-store','X-Accel-Buffering':'no'});this.clients.add(response);this.emit('activity');
+  clearTimeout(this.idleTimer);this.idleTimer=null;response.writeHead(200,{'Content-Type':'multipart/x-mixed-replace; boundary=skyrail-frame','Cache-Control':'no-store','X-Accel-Buffering':'no'});this.clients.add(response);this.emit('activity');
   if(this.latest)this.write(response,this.latest,this.latestType);this.start();
-  response.on('close',()=>{this.clients.delete(response);this.emit('activity');if(!this.clients.size)this.idleTimer=setTimeout(()=>{this.stop();this.state.status='disconnected';this.emit('change')},1500)});
+  response.on('close',()=>{if(!this.clients.delete(response))return;this.idle();this.emit('activity')});
  }
  stop(keepState=false){
-  this.generation++;clearInterval(this.watchdog);clearTimeout(this.idleTimer);clearTimeout(this.captureTimer);
+  this.generation++;clearInterval(this.watchdog);clearTimeout(this.idleTimer);clearTimeout(this.captureTimer);this.idleTimer=null;
   const child=this.child;this.child=null;child?.kill();const snapshot=this.snapshot;this.snapshot=null;snapshot?.child?.kill();
+  for(const [response, sample] of this.samples || []) {
+   clearTimeout(sample.timer);
+   if (!response.writableEnded && !response.destroyed) {
+    response.writeHead(503);
+    response.end();
+   }
+  }
+  this.samples?.clear();
   for(const c of this.clients)c.end();this.clients.clear();this.emit('activity');if(!keepState)this.latest=null;
  }
 }

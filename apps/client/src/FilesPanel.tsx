@@ -1,3 +1,4 @@
+import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 export type Attachment = {
@@ -77,7 +78,9 @@ export function FilesPanel({
         if (!r.ok) throw Error(d.message);
         if (current === version.current) {
           setEntries(d.entries);
-          setNotice(d.truncated ? "仅显示前 300 项，请进入子目录查看。" : "");
+          setNotice(
+            d.truncated ? ui("仅显示前 300 项，请进入子目录查看。") : "",
+          );
         }
       })
       .catch((e) => {
@@ -98,7 +101,7 @@ export function FilesPanel({
       const threadId = selected || (await ensureThread());
       for (const file of files) {
         if (file.size > 50 * 1024 * 1024)
-          throw Error(`${file.name} 超过 50 MB`);
+          throw Error(ui("{0} 超过 50 MB", file.name));
         const uploaded = await new Promise<Attachment>((resolve, reject) => {
           const request = new XMLHttpRequest();
           requests.current.add(request);
@@ -113,7 +116,7 @@ export function FilesPanel({
           request.upload.onprogress = (e) => {
             if (alive.current)
               setProgress(
-                `${file.name} · ${e.lengthComputable ? Math.round((e.loaded / e.total) * 100) + "%" : "上传中"}`,
+                `${file.name} · ${e.lengthComputable ? Math.round((e.loaded / e.total) * 100) + "%" : ui("上传中")}`,
               );
           };
           request.onload = () => {
@@ -122,15 +125,15 @@ export function FilesPanel({
             try {
               d = JSON.parse(request.responseText);
             } catch {
-              return reject(Error("上传响应无效"));
+              return reject(Error(ui("上传响应无效")));
             }
             if (request.status >= 200 && request.status < 300)
               resolve({ ...d, threadId });
-            else reject(Error(d.message || "上传失败"));
+            else reject(Error(d.message || ui("上传失败")));
           };
           const fail = () => {
             requests.current.delete(request);
-            reject(Error("上传已中断，未添加到消息"));
+            reject(Error(ui("上传已中断，未添加到消息")));
           };
           request.onerror = fail;
           request.onabort = fail;
@@ -144,7 +147,7 @@ export function FilesPanel({
         setRoot("uploads");
         setFolder("");
         setRefresh((n) => n + 1);
-        setNotice("已上传并添加到待发送消息。");
+        setNotice(ui("已上传并添加到待发送消息。"));
       }
     } catch (e) {
       if (alive.current) setError((e as Error).message);
@@ -163,7 +166,7 @@ export function FilesPanel({
     <dialog
       className="history-dialog files-dialog"
       ref={dialog}
-      aria-label="文件上传与下载"
+      aria-label={ui("文件上传与下载")}
       onCancel={(e) => {
         e.preventDefault();
         close();
@@ -176,11 +179,11 @@ export function FilesPanel({
         <div className="drawer-heading">
           <div>
             <span className="eyebrow">YOUR FILES</span>
-            <h2>文件</h2>
+            <h2>{ui("文件")}</h2>
           </div>
           <button
             className="icon-button"
-            aria-label="关闭文件管理"
+            aria-label={ui("关闭文件管理")}
             onClick={close}
           >
             <Icon name="close" />
@@ -199,7 +202,7 @@ export function FilesPanel({
             type="file"
             multiple
             hidden
-            aria-label="选择上传文件"
+            aria-label={ui("选择上传文件")}
             onChange={(e) => {
               void upload(Array.from(e.target.files || []));
               e.target.value = "";
@@ -211,34 +214,34 @@ export function FilesPanel({
             onClick={() => picker.current?.click()}
           >
             <Icon name="plus" size={18} />
-            {uploading ? "正在上传…" : "上传并添加到对话"}
+            {uploading ? ui("正在上传…") : ui("上传并添加到对话")}
           </button>
-          <small>支持多文件与拖放，单文件最多 50 MB。</small>
+          <small>{ui("支持多文件与拖放，单文件最多 50 MB。")}</small>
           {uploading && (
             <button
               onClick={() => {
                 for (const request of requests.current) request.abort();
               }}
             >
-              取消上传
+              {ui("取消上传")}
             </button>
           )}
           <span role="status">{progress || notice}</span>
         </div>
-        <div className="files-tabs" role="tablist" aria-label="文件位置">
+        <div className="files-tabs" role="tablist" aria-label={ui("文件位置")}>
           <button
             role="tab"
             aria-selected={root === "workspace"}
             onClick={() => setRoot("workspace")}
           >
-            当前项目
+            {ui("当前项目")}
           </button>
           <button
             role="tab"
             aria-selected={root === "uploads"}
             onClick={() => setRoot("uploads")}
           >
-            上传的文件
+            {ui("上传的文件")}
           </button>
         </div>
         <div className="files-path">
@@ -246,11 +249,11 @@ export function FilesPanel({
             disabled={!folder}
             onClick={() => setFolder(folder.split("/").slice(0, -1).join("/"))}
           >
-            上一级
+            {ui("上一级")}
           </button>
           <span title={folder}>/{folder}</span>
           <button
-            aria-label="刷新文件"
+            aria-label={ui("刷新文件")}
             onClick={() => setRefresh((n) => n + 1)}
           >
             <Icon name="refresh" size={16} />
@@ -263,11 +266,13 @@ export function FilesPanel({
         )}
         <div className="files-list">
           {loading ? (
-            <p>正在读取文件…</p>
+            <p>{ui("正在读取文件…")}</p>
           ) : !selected ? (
-            <p>上传文件后会创建对话；也可先打开已有对话。</p>
+            <p>{ui("上传文件后会创建对话；也可先打开已有对话。")}</p>
           ) : !entries.length ? (
-            <p>这里还没有文件。上传文件，或让 Codex 将结果保存到项目中。</p>
+            <p>
+              {ui("这里还没有文件。上传文件，或让 Codex 将结果保存到项目中。")}
+            </p>
           ) : (
             entries.map((entry) => (
               <div className="file-row" key={entry.path}>
@@ -284,21 +289,23 @@ export function FilesPanel({
                     />
                     <span>{entry.name}</span>
                   </button>
-                  <small>{entry.directory ? "文件夹" : size(entry.size)}</small>
+                  <small>
+                    {entry.directory ? ui("文件夹") : size(entry.size)}
+                  </small>
                 </div>
                 {!entry.directory && (
                   <div>
                     <button
-                      aria-label={"添加到消息：" + entry.name}
+                      aria-label={ui("添加到消息：") + entry.name}
                       onClick={() => {
                         attach({ ...entry, root, threadId: selected });
-                        setNotice("已添加到待发送消息。");
+                        setNotice(ui("已添加到待发送消息。"));
                       }}
                     >
                       <Icon name="plus" size={18} />
                     </button>
                     <a
-                      aria-label={"下载：" + entry.name}
+                      aria-label={ui("下载：") + entry.name}
                       href={downloadUrl({ ...entry, root, threadId: selected })}
                       download={entry.name}
                     >
@@ -311,7 +318,7 @@ export function FilesPanel({
           )}
         </div>
         <p className="files-footnote">
-          文件保存在这台 Mac。项目中的新结果可刷新后下载。
+          {ui("文件保存在这台 Mac。项目中的新结果可刷新后下载。")}
         </p>
       </aside>
     </dialog>

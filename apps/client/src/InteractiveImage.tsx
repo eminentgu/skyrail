@@ -1,7 +1,9 @@
+import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { RemoteSurface } from "./RemoteSurface";
 import type { SurfaceInput } from "./surface-gestures.mjs";
+import { useWindowFrames } from "./useWindowFrames";
 import { Icon } from "./Icon";
 type Props = {
   src?: string;
@@ -14,11 +16,12 @@ type Props = {
   onError: (message: string) => void;
   takeControl?: () => void;
   visible?: boolean;
+  onRetry?: () => void;
 };
 export function InteractiveImage({
   src,
   name,
-  enabled,
+  enabled: controlEnabled,
   epoch,
   threadId,
   clientId,
@@ -26,6 +29,7 @@ export function InteractiveImage({
   onError,
   takeControl,
   visible = true,
+  onRetry,
 }: Props) {
   const image = useRef<HTMLImageElement>(null),
     keyboard = useRef<HTMLTextAreaElement>(null),
@@ -33,6 +37,8 @@ export function InteractiveImage({
     generation = useRef(0),
     composing = useRef(false),
     zoom = useRef<() => void>(() => {});
+  const video = useWindowFrames(src, image);
+  const enabled = controlEnabled && video.ready && !video.waiting;
   const latest = useRef({ enabled, epoch, threadId });
   latest.current = { enabled, epoch, threadId };
   const [focused, setFocused] = useState(false),
@@ -120,10 +126,7 @@ export function InteractiveImage({
         send={send}
         onCancel={release}
         onFocus={() => {
-          if (enabled) {
-            setFocused(true);
-            keyboard.current?.focus({ preventScroll: true });
-          }
+          if (enabled) keyboard.current?.focus({ preventScroll: true });
         }}
         mode={mode}
         resetKey={`${threadId}:${name}`}
@@ -134,19 +137,36 @@ export function InteractiveImage({
         <img
           ref={image}
           className="live-image"
-          src={src}
-          alt={`${name}的实时窗口画面`}
+          alt={ui("{0}的实时窗口画面", name)}
           draggable={false}
         />
       </RemoteSurface>
+      <span className="frame-health" role="status">
+        {video.paused
+          ? ui("画面已暂停")
+          : video.waiting
+            ? ui("正在恢复画面…")
+            : !video.ready
+              ? ui("等待画面…")
+              : video.level === 0
+                ? ui("省流画质")
+                : video.level === 2
+                  ? ui("高清画质")
+                  : ui("自适应画质")}
+        {video.waiting && (
+          <button type="button" onClick={onRetry}>
+            {ui("重新连接")}
+          </button>
+        )}
+      </span>
       <div className="app-touch-controls">
-        <span>{enabled ? "滑动移光标 · 轻点点击" : "只看画面"}</span>
-        <button aria-label="缩放应用画面" onClick={() => zoom.current()}>
+        <span>{enabled ? ui("滑动移光标 · 轻点点击") : ui("只看画面")}</span>
+        <button aria-label={ui("缩放应用画面")} onClick={() => zoom.current()}>
           <Icon name="expand" size={17} />
         </button>
         {!enabled ? (
           <button className="primary" onClick={takeControl}>
-            接手操作
+            {ui("接手操作")}
           </button>
         ) : (
           <button
@@ -159,18 +179,18 @@ export function InteractiveImage({
             }}
           >
             <Icon name="keyboard" size={18} />
-            {focused ? "收起键盘" : "输入文字"}
+            {focused ? ui("收起键盘") : ui("输入文字")}
           </button>
         )}
         <details className="desktop-menu">
-          <summary aria-label="应用操作选项">
+          <summary aria-label={ui("应用操作选项")}>
             <Icon name="settings" size={18} />
           </summary>
           <div>
             <label>
-              手机操作
+              {ui("手机操作")}
               <select
-                aria-label="应用操作方式"
+                aria-label={ui("应用操作方式")}
                 value={mode}
                 onChange={(e) => {
                   const next = e.target.value as typeof mode;
@@ -178,12 +198,12 @@ export function InteractiveImage({
                   localStorage.setItem("skyrail.input", next);
                 }}
               >
-                <option value="trackpad">触控板：滑动移光标</option>
-                <option value="direct">直接点按目标</option>
+                <option value="trackpad">{ui("触控板：滑动移光标")}</option>
+                <option value="direct">{ui("直接点按目标")}</option>
               </select>
             </label>
             <small>
-              轻点单击，连点双击；连点后按住可拖拽。双指缩放和移动画面。
+              {ui("轻点单击，连点双击；连点后按住可拖拽。双指缩放和移动画面。")}
             </small>
           </div>
         </details>
@@ -193,13 +213,13 @@ export function InteractiveImage({
         className={
           "remote-keyboard " + (focused ? "mobile-keyboard-visible" : "")
         }
-        aria-label="应用键盘输入"
+        aria-label={ui("应用键盘输入")}
         disabled={!enabled}
         autoComplete="off"
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        placeholder="在这里输入到应用…"
+        placeholder={ui("在这里输入到应用…")}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing || composing.current) return;
           const specials = [
@@ -252,8 +272,8 @@ export function InteractiveImage({
         <div className="desktop-special-keys">
           {[
             ["Tab", "Tab"],
-            ["Enter", "回车"],
-            ["Backspace", "退格"],
+            ["Enter", ui("回车")],
+            ["Backspace", ui("退格")],
           ].map(([code, label]) => (
             <button
               key={code}

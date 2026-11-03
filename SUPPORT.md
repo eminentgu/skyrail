@@ -79,6 +79,12 @@ Use **添加图片** (add image), paste a screenshot into the composer, or drop 
 
 PNG, JPEG, WebP and GIF are delivered as native visual input, with a 20 MiB limit per image and 20 total attachments per message. GIF is not treated as video. Convert HEIC / SVG to PNG or JPEG for direct vision; those unsupported formats remain ordinary files. Skyrail-sent image metadata survives history synchronization. Imported native-only images without Skyrail metadata still show an image marker. Browser automation's file-URL permission does not affect the normal system image picker or clipboard paste.
 
+## Slow or interrupted video
+
+Single-app video requests the newest frame one at a time. Delivery latency and timeouts lower quality, while sustained fast delivery gradually restores it. The status badge shows current quality or recovery state. Use Reconnect if video pauses after repeated failures. Full desktop sends quality and compression preferences to the macOS Screen Sharing server. The result depends on the encoding supported by that server.
+
+On an existing Mac installation, `npm run setup:mac -- --capture-only` builds the separate video executable while retaining the signed Skyrail Mac app. Restart the local service after building. A full app rebuild can require renewed macOS permission grants.
+
 ---
 
 [Documentation hub](docs/README.md)

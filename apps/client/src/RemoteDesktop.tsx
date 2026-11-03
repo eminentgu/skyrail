@@ -1,10 +1,12 @@
+import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import type RFB from "./desktop-rfb.mjs";
+import { retryDelay } from "./connection.mjs";
 import { RemoteSurface } from "./RemoteSurface";
 import { flushSync } from "react-dom";
 import { Icon } from "./Icon";
 type Props = {
-  post: (path: string, data?: object) => Promise<any>;
+  post: (path: string, data?: object, signal?: AbortSignal) => Promise<any>;
   clientId: string;
   locked?: boolean;
   onClose: () => void;
@@ -24,6 +26,8 @@ export function RemoteDesktop({
 }: Props) {
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
+  const slowFrameAt = useRef(0);
+  const renewable = useRef(false);
   const zoomAction = useRef<() => void>(() => {});
   const [inputMode, setInputMode] = useState<"trackpad" | "direct">(() =>
     localStorage.getItem("skyrail.input") === "direct" ? "direct" : "trackpad",
@@ -37,7 +41,9 @@ export function RemoteDesktop({
     [keyboard, setKeyboard] = useState(false),
     [account, setAccount] = useState(""),
     [controller, setController] = useState<"human" | "view">("human"),
-    [switching, setSwitching] = useState(false);
+    [switching, setSwitching] = useState(false),
+    [quality, setQuality] = useState(1),
+    [unstable, setUnstable] = useState(false);
   const screen = useRef<HTMLDivElement>(null),
     surface = useRef<HTMLDialogElement>(null),
     user = useRef<HTMLInputElement>(null),
@@ -67,6 +73,7 @@ export function RemoteDesktop({
     generation.current++;
     const previous = session.current;
     session.current = null;
+    renewable.current = false;
     rfb.current?.blur();
     rfb.current?.disconnect();
     rfb.current = null;
@@ -81,19 +88,80 @@ export function RemoteDesktop({
   useEffect(() => {
     const leave = () => disconnect();
     window.addEventListener("pagehide", leave);
-    const heartbeat = setInterval(() => {
-      const s = session.current;
-      if (!s || !rfb.current) return;
-      void postRef
-        .current("desktop/renew", { clientId, ticket: s.ticket })
-        .catch(() => {
-          disconnect();
-          setError("连接已过期，请重新连接；未重放任何输入。");
-          setStage("disconnected");
-        });
-    }, 12000);
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let tracked: Session | null = null;
+    let level = 1;
+    let good = 0;
+    let failures = 0;
+    let lastSuccess = Date.now();
+    const heartbeat = async () => {
+      const current = session.current;
+      const client = rfb.current;
+      let delay = 5000;
+      if (current && client && renewable.current) {
+        if (tracked !== current) {
+          tracked = current;
+          level = 1;
+          good = failures = 0;
+          lastSuccess = Date.now();
+        }
+        const began = performance.now();
+        try {
+          await postRef.current(
+            "desktop/renew",
+            { clientId, ticket: current.ticket },
+            AbortSignal.timeout(6000),
+          );
+          if (session.current !== current || disposed) {
+            if (!disposed) timer = setTimeout(heartbeat, 5000);
+            return;
+          }
+          const elapsed = performance.now() - began;
+          lastSuccess = Date.now();
+          failures = 0;
+          const slow =
+            elapsed > 350 || performance.now() - slowFrameAt.current < 6000;
+          good = !slow && elapsed < 150 ? good + 1 : 0;
+          if (slow) level = 0;
+          else if (good >= 3) {
+            level = Math.min(2, level + 1);
+            good = 0;
+          }
+          setUnstable(slow);
+        } catch (error) {
+          if (session.current !== current || disposed) {
+            if (!disposed) timer = setTimeout(heartbeat, 5000);
+            return;
+          }
+          const status = (error as { status?: number }).status;
+          if (
+            status === 401 ||
+            status === 403 ||
+            status === 409 ||
+            Date.now() >= current.expiresAt ||
+            Date.now() - lastSuccess > 90000
+          ) {
+            disconnect();
+            setError(ui("连接已过期，请重新连接；未重放任何输入。"));
+            setStage("disconnected");
+          }
+          level = 0;
+          good = 0;
+          setUnstable(true);
+          delay = retryDelay(failures++);
+        }
+        if (session.current === current && !disposed) {
+          client.qualityLevel = [2, 4, 7][level];
+          setQuality(level);
+        }
+      }
+      if (!disposed) timer = setTimeout(heartbeat, delay);
+    };
+    timer = setTimeout(heartbeat, 5000);
     return () => {
-      clearInterval(heartbeat);
+      disposed = true;
+      clearTimeout(timer);
       window.removeEventListener("pagehide", leave);
       disconnect();
     };
@@ -129,6 +197,8 @@ export function RemoteDesktop({
   }
   async function connect() {
     setStage("connecting");
+    setQuality(1);
+    setUnstable(false);
     setError("");
     setCredentialTypes([]);
     const attempt = ++generation.current;
@@ -158,6 +228,15 @@ export function RemoteDesktop({
       });
       rfb.current = client;
       client.scaleViewport = true;
+      client.qualityLevel = 4;
+      client.compressionLevel = 6;
+      slowFrameAt.current = -Infinity;
+      client.addEventListener("skyrail-slow-frame", () => {
+        if (attempt !== generation.current) return;
+        slowFrameAt.current = performance.now();
+        if (client.qualityLevel > 2) client.qualityLevel = 2;
+        setQuality(0);
+      });
       client.resizeSession = false;
       client.focusOnClick = !matchMedia("(pointer:coarse)").matches;
       client.showDotCursor = true;
@@ -165,16 +244,18 @@ export function RemoteDesktop({
         if (attempt !== generation.current) return;
         const types = (event as CustomEvent<{ types: string[] }>).detail.types;
         if (types.some((t) => !["username", "password"].includes(t))) {
-          setError("系统请求了尚不支持的认证方式，请使用系统账户认证。");
+          setError(ui("系统请求了尚不支持的认证方式，请使用系统账户认证。"));
           disconnect();
           setStage("disconnected");
           return;
         }
+        renewable.current = true;
         setCredentialTypes(types);
         setStage("credentials");
       });
       client.addEventListener("connect", () => {
         if (attempt !== generation.current) return;
+        renewable.current = true;
         erase();
         setStage("live");
 
@@ -185,14 +266,15 @@ export function RemoteDesktop({
       });
       client.addEventListener("securityfailure", () => {
         if (attempt === generation.current)
-          setError("系统账户认证失败。请重新连接后检查用户名与密码。");
+          setError(ui("系统账户认证失败。请重新连接后检查用户名与密码。"));
       });
       client.addEventListener("disconnect", () => {
         if (attempt !== generation.current) return;
         disconnect();
         setStage("disconnected");
         setError(
-          (previous) => previous || "全桌面连接已结束。重新连接不会重放按键。",
+          (previous) =>
+            previous || ui("全桌面连接已结束。重新连接不会重放按键。"),
         );
       });
     } catch (e) {
@@ -205,7 +287,7 @@ export function RemoteDesktop({
   }
   async function setControl(mode: "view" | "human") {
     const current = session.current;
-    if (!current || stage !== "live") throw Error("请先连接电脑");
+    if (!current || stage !== "live") throw Error(ui("请先连接电脑"));
     setSwitching(true);
     setError("");
     rfb.current?.blur();
@@ -273,63 +355,78 @@ export function RemoteDesktop({
     <>
       <div className="desktop-toolbar">
         <div>
-          <span className="eyebrow">你的 MAC</span>
-          <strong>我的 Mac</strong>
+          <span className="eyebrow">{ui("你的 MAC")}</span>
+          <strong>{ui("我的 Mac")}</strong>
           <span role="status">
             {stage === "live"
               ? controller === "human"
-                ? "已连接 · 可操作"
-                : "已连接 · 只看画面"
+                ? ui("已连接 · 可操作")
+                : ui("已连接 · 只看画面")
               : stage === "credentials"
-                ? "验证 Mac 账户"
+                ? ui("验证 Mac 账户")
                 : stage === "connecting"
-                  ? "正在连接…"
-                  : "尚未连接"}
+                  ? ui("正在连接…")
+                  : ui("尚未连接")}
           </span>
+          {stage === "live" && (
+            <span className="desktop-quality">
+              {unstable
+                ? ui("连接不稳定")
+                : quality === 0
+                  ? ui("低带宽")
+                  : quality === 2
+                    ? ui("高清画质")
+                    : ui("自动画质")}
+            </span>
+          )}
         </div>
         <div>
           <button
-            aria-label="全屏"
+            aria-label={ui("全屏")}
             onClick={() =>
               (embedded ? inlineSurface.current : surface.current)
                 ?.requestFullscreen?.()
                 .catch(() =>
-                  setError("当前浏览器不支持全屏，请使用横屏或隐藏地址栏。"),
+                  setError(
+                    ui("当前浏览器不支持全屏，请使用横屏或隐藏地址栏。"),
+                  ),
                 )
             }
           >
             <Icon name="expand" size={18} />
-            <span>全屏</span>
+            <span>{ui("全屏")}</span>
           </button>
           <details className="desktop-menu">
-            <summary aria-label="电脑选项">
+            <summary aria-label={ui("电脑选项")}>
               <Icon name="settings" size={18} />
             </summary>
             <div>
               <label>
-                手机操作
+                {ui("手机操作")}
                 <select
-                  aria-label="手机操作方式"
+                  aria-label={ui("手机操作方式")}
                   value={inputMode}
                   onChange={(e) =>
                     setInputMode(e.target.value as "trackpad" | "direct")
                   }
                 >
-                  <option value="trackpad">触控板：滑动移光标</option>
-                  <option value="direct">直接点按目标</option>
+                  <option value="trackpad">{ui("触控板：滑动移光标")}</option>
+                  <option value="direct">{ui("直接点按目标")}</option>
                 </select>
               </label>
               <small>
-                轻点单击，连点双击；连点后按住可拖拽。双指缩放或移动画面。
+                {ui(
+                  "轻点单击，连点双击；连点后按住可拖拽。双指缩放或移动画面。",
+                )}
               </small>
-              <button onClick={() => void close()}>断开连接</button>
-              <small>切换对话不会断开或锁屏。</small>
+              <button onClick={() => void close()}>{ui("断开连接")}</button>
+              <small>{ui("切换对话不会断开或锁屏。")}</small>
             </div>
           </details>
         </div>
       </div>
       <p className="desktop-privacy">
-        滑动移动光标，轻点单击，连点双击。双指缩放画面。
+        {ui("滑动移动光标，轻点单击，连点双击。双指缩放画面。")}
       </p>
       {error && (
         <p className="desktop-error" role="alert">
@@ -377,15 +474,16 @@ export function RemoteDesktop({
           <span className="desktop-form-icon">
             <Icon name="lock" size={28} />
           </span>
-          <span className="eyebrow">连接你的 MAC</span>
-          <h2>欢迎回来。</h2>
+          <span className="eyebrow">{ui("连接你的 MAC")}</span>
+          <h2>{ui("欢迎回来。")}</h2>
           <p>
-            使用 Mac 的系统账户，不是 Skyrail
-            访问密码。系统有时还会显示登录画面，需要再次输入。
+            {ui(
+              "使用 Mac 的系统账户，不是 Skyrail 访问密码。系统有时还会显示登录画面，需要再次输入。",
+            )}
           </p>
           {credentialTypes.includes("username") && (
             <label>
-              Mac 用户名
+              {ui("Mac 用户名")}
               <input
                 ref={user}
                 name="mac-user"
@@ -398,7 +496,7 @@ export function RemoteDesktop({
             </label>
           )}
           <label>
-            Mac 密码
+            {ui("Mac 密码")}
             <input
               ref={password}
               name="mac-password"
@@ -407,7 +505,7 @@ export function RemoteDesktop({
               required
             />
           </label>
-          <button className="primary">连接系统桌面</button>
+          <button className="primary">{ui("连接系统桌面")}</button>
         </form>
       )}
       {["setup", "disconnected"].includes(stage) && (
@@ -415,42 +513,48 @@ export function RemoteDesktop({
           <span className="desktop-form-icon">
             <Icon name={available ? "monitor" : "settings"} size={28} />
           </span>
-          <span className="eyebrow">你的电脑，随时接续</span>
+          <span className="eyebrow">{ui("你的电脑，随时接续")}</span>
           <h2>
             {available === null
-              ? "正在查找你的 Mac…"
+              ? ui("正在查找你的 Mac…")
               : available
-                ? "连接你的 Mac"
-                : "开启屏幕共享"}
+                ? ui("连接你的 Mac")
+                : ui("开启屏幕共享")}
           </h2>
           <p>
             {available === null
-              ? "正在检查系统屏幕共享服务。"
+              ? ui("正在检查系统屏幕共享服务。")
               : available
-                ? "共享整台 Mac 的桌面，直接点按和输入。连接时请选择共享现有桌面。"
-                : "在 Mac 上打开「系统设置 → 通用 → 共享 → 屏幕共享」，仅允许你的账户访问。开启后回到这里刷新状态。"}
+                ? ui(
+                    "共享整台 Mac 的桌面，直接点按和输入。连接时请选择共享现有桌面。",
+                  )
+                : ui(
+                    "在 Mac 上打开「系统设置 → 通用 → 共享 → 屏幕共享」，仅允许你的账户访问。开启后回到这里刷新状态。",
+                  )}
           </p>
           {available === false && (
-            <p>无需启用“任何人请求控制”或单独设置传统 VNC 密码。</p>
+            <p>{ui("无需启用“任何人请求控制”或单独设置传统 VNC 密码。")}</p>
           )}
-          {active && <p>另一页面仍连接着这台 Mac，可直接切换到当前设备。</p>}
+          {active && (
+            <p>{ui("另一页面仍连接着这台 Mac，可直接切换到当前设备。")}</p>
+          )}
           <div className="desktop-actions">
             <button disabled={available === null} onClick={() => void check()}>
-              刷新状态
+              {ui("刷新状态")}
             </button>
             <button
               className="primary"
               disabled={!available}
               onClick={() => void connect()}
             >
-              {active ? "切换到此设备" : "连接 Mac"}
+              {active ? ui("切换到此设备") : ui("连接 Mac")}
             </button>
           </div>
         </div>
       )}
       {stage === "connecting" && (
         <p className="desktop-connecting" role="status">
-          正在等待系统画面…
+          {ui("正在等待系统画面…")}
         </p>
       )}
       {stage === "live" && (
@@ -460,17 +564,17 @@ export function RemoteDesktop({
               <span className="status-dot" />
               {controller === "human"
                 ? inputMode === "trackpad"
-                  ? "滑动移光标 · 轻点点击"
-                  : "点按目标 · 滑动移光标"
-                : "只看画面，随时接手"}
+                  ? ui("滑动移光标 · 轻点点击")
+                  : ui("点按目标 · 滑动移光标")
+                : ui("只看画面，随时接手")}
             </span>
             <button
               className="desktop-zoom"
-              aria-label="缩放画面"
+              aria-label={ui("缩放画面")}
               onClick={() => zoomAction.current()}
             >
               <Icon name="expand" size={17} />
-              缩放
+              {ui("缩放")}
             </button>
             {controller === "view" ? (
               <button
@@ -478,7 +582,7 @@ export function RemoteDesktop({
                 disabled={switching}
                 onClick={() => void setControl("human").catch(() => {})}
               >
-                {switching ? "正在接手…" : "接手操作"}
+                {switching ? ui("正在接手…") : ui("接手操作")}
               </button>
             ) : (
               <button
@@ -491,7 +595,7 @@ export function RemoteDesktop({
                 }}
               >
                 <Icon name="keyboard" size={18} />
-                {keyboard ? "收起键盘" : "输入文字"}
+                {keyboard ? ui("收起键盘") : ui("输入文字")}
               </button>
             )}
           </div>
@@ -505,8 +609,8 @@ export function RemoteDesktop({
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                aria-label="远程键盘，输入立即发送且不保留"
-                placeholder="在这里输入到 Mac…"
+                aria-label={ui("远程键盘，输入立即发送且不保留")}
+                placeholder={ui("在这里输入到 Mac…")}
                 onCompositionStart={() => {
                   composing.current = true;
                 }}
@@ -528,8 +632,8 @@ export function RemoteDesktop({
               <div className="desktop-special-keys">
                 {[
                   [0xff09, "Tab", "Tab"],
-                  [0xff0d, "Enter", "回车"],
-                  [0xff08, "Backspace", "退格"],
+                  [0xff0d, "Enter", ui("回车")],
+                  [0xff08, "Backspace", ui("退格")],
                   [0xff1b, "Escape", "Esc"],
                 ].map(([symbol, code, label]) => (
                   <button
@@ -555,11 +659,11 @@ export function RemoteDesktop({
             <Icon name={locked ? "lock" : "monitor"} />
           </span>
           <div>
-            <strong>{locked ? "Mac 已锁屏" : "人工全桌面"}</strong>
+            <strong>{locked ? ui("Mac 已锁屏") : ui("人工全桌面")}</strong>
             <small>
               {locked
-                ? "远程输入密码，解锁后继续原对话"
-                : "查看完整桌面或处理系统登录画面"}
+                ? ui("远程输入密码，解锁后继续原对话")
+                : ui("查看完整桌面或处理系统登录画面")}
             </small>
           </div>
           <button
@@ -570,7 +674,7 @@ export function RemoteDesktop({
               void check();
             }}
           >
-            {locked ? "人工解锁" : "打开全桌面"}
+            {locked ? ui("人工解锁") : ui("打开全桌面")}
           </button>
         </div>
       )}
@@ -578,7 +682,7 @@ export function RemoteDesktop({
         <section
           className="desktop-inline"
           ref={inlineSurface}
-          aria-label="整台 Mac 控制台"
+          aria-label={ui("整台 Mac 控制台")}
         >
           {content}
         </section>
@@ -588,7 +692,7 @@ export function RemoteDesktop({
             className="desktop-console"
             ref={surface}
             onCancel={(e) => e.preventDefault()}
-            aria-label="人工全桌面控制台"
+            aria-label={ui("人工全桌面控制台")}
           >
             {content}
           </dialog>

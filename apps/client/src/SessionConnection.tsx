@@ -1,3 +1,4 @@
+import { t as ui } from "./i18n";
 import React, { useState } from "react";
 import { Icon } from "./Icon";
 type Owner = {
@@ -44,41 +45,46 @@ export function SessionConnection({
     <div
       className="session-connection"
       role="group"
-      aria-label="Codex 会话连接管理"
+      aria-label={ui("Codex 会话连接管理")}
     >
       <div>
-        <strong>原会话连接被占用</strong>
+        <strong>{ui("原会话连接被占用")}</strong>
         <p>
-          历史记录和草稿保留。可重新连接原会话，或检查并结束占用它的 Codex
-          后台连接。
+          {ui(
+            "历史记录和草稿保留。可重新连接原会话，或检查并结束占用它的 Codex 后台连接。",
+          )}
         </p>
       </div>
       <div className="connection-recovery-actions">
         <button disabled={busy} onClick={() => void run("reconnect")}>
           <Icon name="refresh" size={16} />
-          {busy ? "处理中…" : "重新连接"}
+          {busy ? ui("处理中…") : ui("重新连接")}
         </button>
         <button disabled={busy} onClick={() => void run("connection")}>
-          检查占用连接
+          {ui("检查占用连接")}
         </button>
       </div>
       {owner && (
         <div className="owner-review">
           {!owner.occupied ? (
-            <p>目前没有检测到占用进程，可以重新连接。</p>
+            <p>{ui("目前没有检测到占用进程，可以重新连接。")}</p>
           ) : (
             <>
               <p>
-                {owner.client} 持有该会话。结束它会断开同一进程中的{" "}
-                <strong>{owner.sessionCount} 个会话连接</strong>
-                ，包括可能正在进行的任务和桌面端当前聊天；聊天记录保留。
+                {owner.client}
+                {ui("持有该会话。结束它会断开同一进程中的")}{" "}
+                <strong>
+                  {owner.sessionCount}
+                  {ui("个会话连接")}
+                </strong>
+                {ui("，包括可能正在进行的任务和桌面端当前聊天；聊天记录保留。")}
               </p>
               {owner.canStop ? (
                 <button disabled={busy} onClick={() => void run("stop-owner")}>
-                  确认结束占用并连接原会话
+                  {ui("确认结束占用并连接原会话")}
                 </button>
               ) : (
-                <p>该进程无法由 Skyrail 结束，请在原客户端关闭连接。</p>
+                <p>{ui("该进程无法由 Skyrail 结束，请在原客户端关闭连接。")}</p>
               )}
             </>
           )}

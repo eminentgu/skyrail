@@ -1,3 +1,4 @@
+import { t as ui } from "./i18n";
 import React, { useEffect, useState } from "react";
 export function PermissionSettings({
   fullAccess,
@@ -31,11 +32,11 @@ export function PermissionSettings({
     <div className="permission-settings">
       <label className="full-access-toggle">
         <span>
-          <strong>允许全部操作</strong>
+          <strong>{ui("允许全部操作")}</strong>
           <small>
             {fullAccess
-              ? "命令行、文件、网络与应用操作已允许"
-              : "工作区权限，命令与应用操作按需确认"}
+              ? ui("命令行、文件、网络与应用操作已允许")
+              : ui("工作区权限，命令与应用操作按需确认")}
           </small>
         </span>
         <input
@@ -60,21 +61,33 @@ export function PermissionSettings({
         />
       </label>
       <p>
-        默认开启，作用于 Skyrail 发起的任务。切换后沿用原 Codex
-        会话，下次任务生效。{busy ? "执行中请先停止任务再切换。" : ""}
+        {ui(
+          "默认开启，作用于 Skyrail 发起的任务。切换后沿用原 Codex 会话，下次任务生效。",
+        )}
+        {busy ? ui("执行中请先停止任务再切换。") : ""}
       </p>
       <div className="system-permissions">
         <span>
-          辅助功能{" "}
-          {health ? (health.accessibility ? "已授权" : "未授权") : "检查中"}
+          {ui("辅助功能")}{" "}
+          {health
+            ? health.accessibility
+              ? ui("已授权")
+              : ui("未授权")
+            : ui("检查中")}
         </span>
         <span>
-          屏幕录制{" "}
-          {health ? (health.screenRecording ? "已授权" : "未授权") : "检查中"}
+          {ui("屏幕录制")}{" "}
+          {health
+            ? health.screenRecording
+              ? ui("已授权")
+              : ui("未授权")
+            : ui("检查中")}
         </span>
       </div>
       <small>
-        macOS 的文件权限独立管理。请为常驻应用 Skyrail Mac 开启完全磁盘访问，授权后重启服务；此开关无法代替系统授权。
+        {ui(
+          "macOS 的文件权限独立管理。请为常驻应用 Skyrail Mac 开启完全磁盘访问，授权后重启服务；此开关无法代替系统授权。",
+        )}
       </small>
       <button
         onClick={() =>
@@ -83,7 +96,7 @@ export function PermissionSettings({
           )
         }
       >
-        打开 macOS 隐私设置
+        {ui("打开 macOS 隐私设置")}
       </button>
       {error && <p role="alert">{error}</p>}
     </div>

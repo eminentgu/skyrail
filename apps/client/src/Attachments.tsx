@@ -1,3 +1,4 @@
+import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { downloadUrl, type Attachment } from "./FilesPanel";
 import { Icon } from "./Icon";
@@ -25,7 +26,7 @@ export function Picture({
         <button
           type="button"
           className={"attachment-picture" + (compact ? " compact" : "")}
-          aria-label={"查看图片：" + file.name}
+          aria-label={ui("查看图片：") + file.name}
           onClick={() => setOpened(true)}
         >
           <img
@@ -37,14 +38,15 @@ export function Picture({
         </button>
       ) : (
         <a href={downloadUrl(file)} download={file.name}>
-          {file.name} · 预览不可用，下载查看
+          {file.name}
+          {ui("· 预览不可用，下载查看")}
         </a>
       )}
       {opened && (
         <dialog
           ref={dialog}
           className="picture-dialog"
-          aria-label={"图片预览：" + file.name}
+          aria-label={ui("图片预览：") + file.name}
           onCancel={(e) => {
             e.preventDefault();
             setOpened(false);
@@ -58,13 +60,13 @@ export function Picture({
             <a
               href={downloadUrl(file)}
               download={file.name}
-              aria-label="下载图片"
+              aria-label={ui("下载图片")}
             >
               <Icon name="download" />
             </a>
             <button
               type="button"
-              aria-label="关闭图片预览"
+              aria-label={ui("关闭图片预览")}
               onClick={() => setOpened(false)}
             >
               <Icon name="close" />

@@ -1,3 +1,4 @@
+import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { NativeSessions } from "./NativeSessions";
 import { Icon } from "./Icon";
@@ -41,7 +42,7 @@ export function SessionDrawer({
     <dialog
       className="history-dialog"
       ref={ref}
-      aria-label="会话管理"
+      aria-label={ui("会话管理")}
       onCancel={(e) => {
         e.preventDefault();
         close();
@@ -54,25 +55,29 @@ export function SessionDrawer({
         <div className="drawer-heading">
           <div>
             <span className="eyebrow">YOUR WORKSPACE</span>
-            <h2>你的对话</h2>
+            <h2>{ui("你的对话")}</h2>
           </div>
           <button
             className="icon-button"
             onClick={close}
-            aria-label="关闭会话管理"
+            aria-label={ui("关闭会话管理")}
           >
             <Icon name="close" />
           </button>
         </div>
         <button className="new-chat primary" onClick={create} disabled={busy}>
           <Icon name="plus" />
-          新对话
+          {ui("新对话")}
         </button>
-        <div className="history-tabs" role="tablist" aria-label="会话来源">
+        <div
+          className="history-tabs"
+          role="tablist"
+          aria-label={ui("会话来源")}
+        >
           {[
-            ["local", "最近对话"],
-            ["native", "Codex 项目"],
-            ["trash", "最近删除"],
+            ["local", ui("最近对话")],
+            ["native", ui("Codex 项目")],
+            ["trash", ui("最近删除")],
           ].map(([id, label]) => (
             <button
               role="tab"
@@ -102,12 +107,12 @@ export function SessionDrawer({
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="查找你的对话"
-                  aria-label="查找 Skyrail 对话"
+                  placeholder={ui("查找你的对话")}
+                  aria-label={ui("查找 Skyrail 对话")}
                 />
               </label>
               <p className="list-caption">
-                {search ? "搜索结果" : "最近对话"} · {items.length}
+                {search ? ui("搜索结果") : ui("最近对话")} · {items.length}
               </p>
               {items.map((t) => (
                 <div
@@ -119,17 +124,19 @@ export function SessionDrawer({
                   <button className="history-item" onClick={() => select(t.id)}>
                     <Icon name="chat" size={18} />
                     <span>
-                      <strong>{t.title}</strong>
+                      <strong>
+                        {t.title === "新对话" ? ui("新对话") : t.title}
+                      </strong>
                       <small>
                         {{
-                          idle: "尚未开始",
-                          completed: "已完成",
-                          running: "任务进行中",
-                          submitting: "正在发送",
-                          interrupted: "已中断",
-                          failed: "未完成",
-                          external_running: "其他客户端执行中",
-                          syncing: "同步中",
+                          idle: ui("尚未开始"),
+                          completed: ui("已完成"),
+                          running: ui("任务进行中"),
+                          submitting: ui("正在发送"),
+                          interrupted: ui("已中断"),
+                          failed: ui("未完成"),
+                          external_running: ui("其他客户端执行中"),
+                          syncing: ui("同步中"),
                         }[t.status] || t.status}
                       </small>
                     </span>
@@ -140,8 +147,8 @@ export function SessionDrawer({
                       busy ||
                       ["running", "submitting", "syncing"].includes(t.status)
                     }
-                    aria-label={"删除对话：" + t.title}
-                    title="移到最近删除"
+                    aria-label={ui("删除对话：") + t.title}
+                    title={ui("移到最近删除")}
                     onClick={() => remove(t.id)}
                   >
                     <Icon name="trash" size={17} />
@@ -151,11 +158,11 @@ export function SessionDrawer({
               {!items.length && (
                 <div className="drawer-empty">
                   <Icon name="chat" size={32} />
-                  <h3>{search ? "没有匹配的对话" : "还没有对话"}</h3>
+                  <h3>{search ? ui("没有匹配的对话") : ui("还没有对话")}</h3>
                   <p>
                     {search
-                      ? "试试更短的关键词。"
-                      : "开始一个想法，随时回来继续。"}
+                      ? ui("试试更短的关键词。")
+                      : ui("开始一个想法，随时回来继续。")}
                   </p>
                 </div>
               )}
@@ -163,25 +170,25 @@ export function SessionDrawer({
           ) : (
             <>
               <p className="history-note">
-                这里的对话可以恢复。Codex 原始记录会保留。
+                {ui("这里的对话可以恢复。Codex 原始记录会保留。")}
               </p>
               {deleted.map((t) => (
                 <div className="history-row" key={t.id}>
-                  <span>{t.title}</span>
+                  <span>{t.title === "新对话" ? ui("新对话") : t.title}</span>
                   <button
                     className="text-button"
                     disabled={busy}
                     onClick={() => restore(t.id)}
                   >
-                    恢复
+                    {ui("恢复")}
                   </button>
                 </div>
               ))}
               {!deleted.length && (
                 <div className="drawer-empty">
                   <Icon name="history" size={32} />
-                  <h3>没有已删除的对话</h3>
-                  <p>移除的对话会先保留在这里。</p>
+                  <h3>{ui("没有已删除的对话")}</h3>
+                  <p>{ui("移除的对话会先保留在这里。")}</p>
                 </div>
               )}
             </>
@@ -189,7 +196,7 @@ export function SessionDrawer({
         </div>
         <p className="drawer-footer">
           <span className="status-dot" />
-          保留原会话，跨设备继续
+          {ui("保留原会话，跨设备继续")}
         </p>
       </aside>
     </dialog>

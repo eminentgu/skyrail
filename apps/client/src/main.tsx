@@ -1,3 +1,5 @@
+import { retryDelay } from "./connection.mjs";
+import { getLanguage, setLanguage, t as ui } from "./i18n";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
@@ -19,6 +21,7 @@ type Thread = {
   id: string;
   title: string;
   messages: Message[];
+  hasEarlier?: boolean;
   status: string;
   error?: string;
   errorCode?: string;
@@ -40,6 +43,19 @@ type State = {
   approvals?: ChatApproval[];
 };
 function App() {
+  const [language, changeLanguage] = useState(getLanguage);
+  const [network, setNetwork] = useState("connecting");
+  const reconnect = React.useRef(() => {});
+  const subscribeThread = React.useRef<(id: string) => void>(() => {});
+  const [older, setOlder] = useState<{
+    thread: string;
+    items: Message[];
+    more: boolean;
+  } | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  useEffect(() => {
+    setLanguage(language);
+  }, [language]);
   const [state, setState] = useState<State>({
       threads: [],
       runtime: "disconnected",
@@ -104,6 +120,15 @@ function App() {
     }
   }, [text, panel]);
   const thread = state.threads.find((t) => t.id === selected);
+  const earlier = older?.thread === selected ? older : null;
+  const currentMessages = thread?.messages || [];
+  const recentIds = new Set(currentMessages.map((message) => message.id));
+  const messages = earlier
+    ? [
+        ...earlier.items.filter((message) => !recentIds.has(message.id)),
+        ...currentMessages,
+      ]
+    : currentMessages;
   const localRunning = ["running", "submitting"].includes(thread?.status || "");
   const externalRunning = thread?.status === "external_running";
   const syncing = thread?.status === "syncing";
@@ -112,122 +137,235 @@ function App() {
   const messagesRef = React.useRef<HTMLDivElement | null>(null);
   const follows = React.useRef(true);
   function selectThread(id: string) {
+    if (selectedRef.current !== id) {
+      selectedRef.current = id;
+      setOlder(null);
+      setLoadingHistory(false);
+      subscribeThread.current(id);
+    }
     select(id);
     localStorage.setItem("skyrail.thread", id);
     follows.current = true;
   }
   useEffect(() => {
     let disposed = false;
+    let initialized = false;
+    let busy = false;
+    let attempts = 0;
     let timer: ReturnType<typeof setTimeout>;
-    async function attach(initial = false) {
+    const controller = new AbortController();
+    const schedule = () => {
+      if (disposed) return;
+      setNetwork(navigator.onLine ? "recovering" : "offline");
+      clearTimeout(timer);
+      if (navigator.onLine) timer = setTimeout(attach, retryDelay(attempts++));
+    };
+    function subscribe(id: string) {
+      sourceRef.current?.close();
+      const source = new EventSource(
+        "/v1/events?compact=1&threadId=" + encodeURIComponent(id),
+      );
+      sourceRef.current = source;
+      source.onmessage = (event) => {
+        if (disposed || sourceRef.current !== source) return;
+        setState(JSON.parse(event.data));
+        attempts = 0;
+        setNetwork("online");
+      };
+      source.addEventListener("stream", (event) => {
+        if (!disposed && sourceRef.current === source)
+          setState((previous) => ({
+            ...previous,
+            stream: JSON.parse((event as MessageEvent).data),
+          }));
+      });
+      source.onerror = () => {
+        if (sourceRef.current !== source) return;
+        source.close();
+        schedule();
+      };
+    }
+    subscribeThread.current = (id) => {
+      if (initialized && !busy && navigator.onLine) subscribe(id);
+    };
+    async function attach() {
+      if (busy || disposed) return;
+      if (!navigator.onLine) {
+        schedule();
+        return;
+      }
+      busy = true;
       try {
-        const response = await fetch("/v1/bootstrap");
+        const response = await fetch("/v1/bootstrap?compact=1&threadId=", {
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(8000),
+          ]),
+        });
         if (response.status === 401) {
           window.location.assign("/");
           return;
         }
-        if (!response.ok) throw Error("bootstrap failed");
-        const s = await response.json();
+        if (!response.ok) throw Error("Bootstrap unavailable");
+        const snapshot = await response.json();
         if (disposed) return;
-        setToken(s.token);
-        setState(s);
-        if (s.runtime !== "connected") {
+        setToken(snapshot.token);
+        setState((previous) => ({
+          ...snapshot,
+          threads: snapshot.threads.map((entry: Thread) => ({
+            ...entry,
+            messages:
+              previous.threads.find((existing) => existing.id === entry.id)
+                ?.messages || [],
+          })),
+        }));
+        if (!initialized) {
+          initialized = true;
+          const saved = localStorage.getItem("skyrail.thread");
+          selectThread(
+            snapshot.threads.some((thread: Thread) => thread.id === saved)
+              ? saved
+              : snapshot.threads[0]?.id || "",
+          );
+        }
+        if (snapshot.runtime !== "connected" && attempts === 0) {
           try {
-            setState({ ...s, runtime: "connecting" });
-            const connected = await fetch("/v1/connect", {
+            const response = await fetch("/v1/connect", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "X-Skyrail-Token": s.token,
+                "X-Skyrail-Token": snapshot.token,
+                "X-Skyrail-Thread": selectedRef.current,
               },
               body: "{}",
+              signal: AbortSignal.any([
+                controller.signal,
+                AbortSignal.timeout(12000),
+              ]),
             });
-            const next = await connected.json();
-            if (!connected.ok) throw Error(next.message || "Codex 连接失败");
-            if (!disposed) setState(next);
-          } catch (e) {
-            if (!disposed) {
-              setState(s);
-              setError("Codex 连接失败：" + (e as Error).message);
-            }
+            if (response.ok && !disposed) setState(await response.json());
+          } catch {
+            /* The manual Codex connect action remains available. */
           }
         }
-        if (initial) {
-          const saved = localStorage.getItem("skyrail.thread");
-          selectThread(
-            s.threads.some((t: Thread) => t.id === saved)
-              ? saved
-              : s.threads[0]?.id || "",
-          );
-        }
-        sourceRef.current?.close();
-        const source = new EventSource("/v1/events");
-        sourceRef.current = source;
-        source.onmessage = (e) => {
-          if (!disposed) setState(JSON.parse(e.data));
-        };
-        source.onopen = () =>
-          setError((e) => (e.startsWith("本地服务") ? "" : e));
-        source.onerror = () => {
-          source.close();
-          if (!disposed) {
-            setError("本地服务连接中断，正在重连…");
-            timer = setTimeout(() => attach(), 2000);
-          }
-        };
+        if (disposed) return;
+        subscribe(selectedRef.current);
       } catch {
-        if (!disposed) {
-          setError("本地服务连接失败，正在重连…");
-          timer = setTimeout(() => attach(initial), 3000);
-        }
+        schedule();
+      } finally {
+        busy = false;
       }
     }
-    attach(true);
-    return () => {
-      disposed = true;
+    const retry = () => {
       clearTimeout(timer);
       sourceRef.current?.close();
+      void attach();
+    };
+    reconnect.current = retry;
+    window.addEventListener("online", retry);
+    window.addEventListener("offline", schedule);
+    void attach();
+    return () => {
+      disposed = true;
+      controller.abort();
+      clearTimeout(timer);
+      sourceRef.current?.close();
+      window.removeEventListener("online", retry);
+      window.removeEventListener("offline", schedule);
     };
   }, []);
+  async function loadEarlier() {
+    if (loadingHistory || !messages[0]?.id) return;
+    const id = selected;
+    const list = messagesRef.current;
+    const before = list?.scrollHeight || 0;
+    const scroll = list?.scrollTop || 0;
+    setLoadingHistory(true);
+    follows.current = false;
+    try {
+      const query = new URLSearchParams({
+        threadId: id,
+        before: messages[0].id,
+      });
+      const response = await fetch("/v1/history?" + query);
+      if (!response.ok) throw Error(ui("无法读取较早记录"));
+      const page = await response.json();
+      if (selectedRef.current !== id) return;
+      setOlder({
+        thread: id,
+        items: [...page.messages, ...messages],
+        more: page.hasEarlier,
+      });
+      requestAnimationFrame(() => {
+        if (list && selectedRef.current === id)
+          list.scrollTop = scroll + list.scrollHeight - before;
+      });
+    } catch (error) {
+      if (selectedRef.current === id) setError((error as Error).message);
+    } finally {
+      if (selectedRef.current === id) setLoadingHistory(false);
+    }
+  }
   React.useLayoutEffect(() => {
     const el = messagesRef.current;
     if (el && follows.current) el.scrollTop = el.scrollHeight;
-  }, [thread?.messages.map((m) => m.text).join(""), selected]);
+  }, [messages.map((m) => m.text).join(""), selected]);
   useEffect(() => {
     localStorage.setItem("skyrail.page", panel ? "computer" : "chat");
   }, [panel]);
-  async function post(path: string, data: object = {}) {
+  async function post(path: string, data: object = {}, signal?: AbortSignal) {
     const r = await fetch("/v1/" + path, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Skyrail-Token": token },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Skyrail-Token": token,
+        "X-Skyrail-Thread": selectedRef.current,
+      },
       body: JSON.stringify(data),
+      signal:
+        signal ??
+        (path === "mac/input" || path === "mac/release"
+          ? AbortSignal.timeout(8000)
+          : undefined),
     });
     if (r.status === 401) {
       window.location.assign("/");
-      throw Error("远程登录已过期，请重新登录");
+      throw Error(ui("远程登录已过期，请重新登录"));
     }
     const s = await r.json();
-    if (!r.ok) throw Error(s.message);
+    if (!r.ok)
+      throw Object.assign(Error(ui(s.message || "请求失败")), {
+        status: r.status,
+      });
     return s;
   }
   useEffect(() => {
-    if (!selected || !token || state.runtime !== "connected") return;
+    if (
+      !selected ||
+      !token ||
+      state.runtime !== "connected" ||
+      network !== "online" ||
+      panel
+    )
+      return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
       try {
+        if (document.hidden) return;
         const r = await fetch("/v1/threads/" + selected + "/sync", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-Skyrail-Token": token,
+            "X-Skyrail-Thread": selected,
           },
           body: "{}",
         });
         if (r.ok && !disposed) setState(await r.json());
       } catch {
       } finally {
-        if (!disposed) timer = setTimeout(refresh, 5000);
+        if (!disposed) timer = setTimeout(refresh, 12000);
       }
     };
     void refresh();
@@ -235,7 +373,7 @@ function App() {
       disposed = true;
       clearTimeout(timer);
     };
-  }, [selected, token, state.runtime]);
+  }, [selected, token, state.runtime, network, panel]);
   async function act(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -284,6 +422,7 @@ function App() {
       running ||
       busy ||
       imageUploads.uploading ||
+      network !== "online" ||
       state.runtime !== "connected"
     )
       return;
@@ -338,11 +477,15 @@ function App() {
     }
   }, [selected, thread?.retryDraft?.text]);
   const runtimeLabel =
-    state.runtime === "connected"
-      ? "已连接"
-      : state.runtime === "connecting"
-        ? "连接中"
-        : "未连接";
+    network === "offline"
+      ? ui("网络已断开")
+      : network === "recovering"
+        ? ui("正在恢复连接…")
+        : state.runtime === "connected"
+          ? ui("已连接")
+          : state.runtime === "connecting"
+            ? ui("连接中")
+            : ui("未连接");
   const approvalCount = (state.approvals || []).filter(
     (a) => a.threadId === selected,
   ).length;
@@ -359,14 +502,14 @@ function App() {
             open(false);
             setFull(false);
           }}
-          aria-label="Skyrail 返回对话"
+          aria-label={ui("Skyrail 返回对话")}
         >
           <BrandMark />
           <span>
-            Skyrail<small>你的 Mac 工作台</small>
+            Skyrail<small>{ui("你的 Mac 工作台")}</small>
           </span>
         </a>
-        <nav className="desktop-switch" aria-label="工作区">
+        <nav className="desktop-switch" aria-label={ui("工作区")}>
           <button
             aria-pressed={!panel}
             onClick={() => {
@@ -375,28 +518,59 @@ function App() {
             }}
           >
             <Icon name="chat" size={18} />
-            对话
+            {ui("对话")}
           </button>
           <button aria-pressed={panel} onClick={() => open(true)}>
             <Icon name="monitor" size={18} />
-            电脑
+            {ui("电脑")}
           </button>
         </nav>
         <div className="header-actions">
           <button
+            className="language-toggle"
+            type="button"
+            aria-label={ui("切换语言")}
+            onClick={() => {
+              const next = language === "en" ? "zh-CN" : "en";
+              setLanguage(next);
+              changeLanguage(next);
+            }}
+          >
+            {language === "en" ? "中文" : "EN"}
+          </button>
+          <button
             className="icon-button theme-toggle"
             onClick={() => setDark(!dark)}
-            aria-label="切换主题"
-            title="切换主题"
+            aria-label={ui("切换主题")}
+            title={ui("切换主题")}
           >
             <Icon name={dark ? "sun" : "moon"} />
           </button>
         </div>
       </header>
+      {(network === "offline" || network === "recovering") && (
+        <div className="network-notice" role="status">
+          <span>
+            {network === "offline" ? ui("网络已断开") : ui("正在恢复连接…")}
+          </span>
+          {network === "recovering" && (
+            <button onClick={() => reconnect.current()}>
+              {ui("重新连接")}
+            </button>
+          )}
+        </div>
+      )}
       {panel && error && (
         <div className="workspace-connection-error" role="alert">
           <span>{error}</span>
-          <button onClick={() => window.location.reload()}>刷新连接</button>
+          <button
+            onClick={() => {
+              setError("");
+              reconnect.current();
+            }}
+          >
+            {ui("刷新连接")}
+          </button>
         </div>
       )}
       {history && (
@@ -435,12 +609,12 @@ function App() {
       {deletedId && (
         <div className="undo-toast" role="status">
           <Icon name="check" size={18} />
-          <span>对话已移到最近删除</span>
-          <button onClick={() => restoreThread(deletedId)}>撤销</button>
+          <span>{ui("对话已移到最近删除")}</span>
+          <button onClick={() => restoreThread(deletedId)}>{ui("撤销")}</button>
           <button
             className="icon-button"
             onClick={() => setDeletedId("")}
-            aria-label="关闭撤销提示"
+            aria-label={ui("关闭撤销提示")}
           >
             <Icon name="close" size={16} />
           </button>
@@ -449,7 +623,7 @@ function App() {
       <main className={`${panel ? "split" : ""} ${full ? "full" : ""}`}>
         <section
           className="chat"
-          aria-label="Codex 对话"
+          aria-label={ui("Codex 对话")}
           onDragOver={(e) => {
             if (e.dataTransfer.types.includes("Files")) e.preventDefault();
           }}
@@ -466,9 +640,11 @@ function App() {
                 <Icon name="code" />
               </span>
               <div>
-                <span className="eyebrow">与 CODEX 一起</span>
+                <span className="eyebrow">{ui("与 CODEX 一起")}</span>
                 <h1 title={thread?.title}>
-                  {thread?.title || "新的想法，从这里开始"}
+                  {thread?.title === "新对话"
+                    ? ui("新对话")
+                    : thread?.title || ui("新的想法，从这里开始")}
                 </h1>
               </div>
             </div>
@@ -480,11 +656,11 @@ function App() {
               <button
                 className="manage-conversations"
                 onClick={() => showHistory(true)}
-                aria-label="管理对话"
+                aria-label={ui("管理对话")}
                 aria-expanded={history}
               >
                 <Icon name="history" size={18} />
-                <span>管理对话</span>
+                <span>{ui("管理对话")}</span>
               </button>
             </div>
           </div>
@@ -493,16 +669,18 @@ function App() {
               <summary>
                 <Icon name="history" size={15} />
                 <span>
-                  {thread.syncError ? "记录同步遇到问题" : "已关联 Codex 会话"}
+                  {thread.syncError
+                    ? ui("记录同步遇到问题")
+                    : ui("已关联 Codex 会话")}
                 </span>
                 <span className="session-state">
                   {thread.syncError
-                    ? "查看详情"
+                    ? ui("查看详情")
                     : syncing
-                      ? "同步中"
+                      ? ui("同步中")
                       : thread.syncedAt
-                        ? "记录已同步"
-                        : "等待同步"}
+                        ? ui("记录已同步")
+                        : ui("等待同步")}
                 </span>
                 <Icon name="chevron" size={14} />
               </summary>
@@ -519,7 +697,7 @@ function App() {
                     }
                   >
                     <Icon name={copied ? "check" : "copy"} size={15} />
-                    {copied ? "已复制" : "复制编号"}
+                    {copied ? ui("已复制") : ui("复制编号")}
                   </button>
                   <button
                     disabled={busy || localRunning || syncing}
@@ -530,7 +708,7 @@ function App() {
                     }
                   >
                     <Icon name="refresh" size={15} />
-                    同步记录
+                    {ui("同步记录")}
                   </button>
                 </div>
                 {thread.syncError && <small>{thread.syncError}</small>}
@@ -551,11 +729,11 @@ function App() {
           {guide && (
             <div className="chat-guide">
               <div className="guide-heading">
-                <strong>说出任务，让 Codex 动手。</strong>
+                <strong>{ui("说出任务，让 Codex 动手。")}</strong>
                 <button
                   className="icon-button"
                   onClick={() => showGuide(false)}
-                  aria-label="关闭指南"
+                  aria-label={ui("关闭指南")}
                 >
                   <Icon name="close" size={16} />
                 </button>
@@ -567,18 +745,19 @@ function App() {
                 onSnapshot={setState}
               />
               <p>
-                例如“打开计算器，计算 2 的 10
-                次方”。允许应用访问后，可查看画面或随时接管。
+                {ui(
+                  "例如“打开计算器，计算 2 的 10 次方”。允许应用访问后，可查看画面或随时接管。",
+                )}
               </p>
               <div>
                 <button
                   onClick={() => {
-                    setText("打开本机计算器，计算 2 的 10 次方");
+                    setText(ui("打开本机计算器，计算 2 的 10 次方"));
                     showGuide(false);
                     composerRef.current?.focus();
                   }}
                 >
-                  试试计算器
+                  {ui("试试计算器")}
                 </button>
                 <button
                   onClick={() => {
@@ -586,7 +765,7 @@ function App() {
                     showGuide(false);
                   }}
                 >
-                  查看电脑
+                  {ui("查看电脑")}
                 </button>
                 <button
                   onClick={() => {
@@ -595,7 +774,7 @@ function App() {
                     showGuide(false);
                   }}
                 >
-                  应用工具设置
+                  {ui("应用工具设置")}
                 </button>
               </div>
             </div>
@@ -611,41 +790,41 @@ function App() {
             }}
             aria-live="polite"
           >
-            {!thread?.messages.length ? (
+            {!messages.length ? (
               <div className="welcome">
                 <span className="welcome-mark">
                   <BrandMark />
                 </span>
-                <p className="eyebrow">从想法，到行动</p>
+                <p className="eyebrow">{ui("从想法，到行动")}</p>
                 <h2>
-                  从一句话开始，
+                  {ui("从一句话开始，")}
                   <br />
-                  一起把事情做好。
+                  {ui("一起把事情做好。")}
                 </h2>
                 <p className="welcome-description">
-                  接着上次的思路，或开始一件新鲜事。
+                  {ui("接着上次的思路，或开始一件新鲜事。")}
                   <br />
-                  你的 Codex 和 Mac，都在这里。
+                  {ui("你的 Codex 和 Mac，都在这里。")}
                 </p>
                 <div className="suggestions">
                   {[
                     {
                       icon: "monitor" as const,
-                      title: "让 Mac 动起来",
-                      text: "打开本机计算器，计算 2 的 10 次方",
-                      detail: "打开应用，一起完成任务",
+                      title: ui("让 Mac 动起来"),
+                      text: ui("打开本机计算器，计算 2 的 10 次方"),
+                      detail: ui("打开应用，一起完成任务"),
                     },
                     {
                       icon: "code" as const,
-                      title: "梳理一个项目",
-                      text: "梳理一个项目的实施计划",
-                      detail: "从代码和问题，走到下一步",
+                      title: ui("梳理一个项目"),
+                      text: ui("梳理一个项目的实施计划"),
+                      detail: ui("从代码和问题，走到下一步"),
                     },
                     {
                       icon: "chat" as const,
-                      title: "一起想清楚",
-                      text: "帮我比较两种技术方案",
-                      detail: "比较方案，理清思路",
+                      title: ui("一起想清楚"),
+                      text: ui("帮我比较两种技术方案"),
+                      detail: ui("比较方案，理清思路"),
                     },
                   ].map((s) => (
                     <button
@@ -668,28 +847,41 @@ function App() {
                 </div>
               </div>
             ) : (
-              <Conversation
-                threadId={selected}
-                cwd={thread?.cwd}
-                messages={thread.messages}
-                approvals={(state.approvals || []).filter(
-                  (a) => a.threadId === selected,
+              <>
+                {(earlier ? earlier.more : thread?.hasEarlier) && (
+                  <button
+                    className="load-history"
+                    disabled={loadingHistory}
+                    onClick={() => void loadEarlier()}
+                  >
+                    {loadingHistory
+                      ? ui("正在读取较早记录…")
+                      : ui("加载较早记录")}
+                  </button>
                 )}
-                decide={async (id, allow, allowAll) => {
-                  await post("approval", { id, allow, allowAll });
-                }}
-              />
+                <Conversation
+                  threadId={selected}
+                  cwd={thread?.cwd}
+                  messages={messages}
+                  approvals={(state.approvals || []).filter(
+                    (a) => a.threadId === selected,
+                  )}
+                  decide={async (id, allow, allowAll) => {
+                    await post("approval", { id, allow, allowAll });
+                  }}
+                />
+              </>
             )}
             {running && (
               <div className="working" role="status">
                 <span className="working-dot" />
                 {syncing
-                  ? "正在同步会话记录"
+                  ? ui("正在同步会话记录")
                   : externalRunning
-                    ? "另一端正在执行，记录会自动同步"
+                    ? ui("另一端正在执行，记录会自动同步")
                     : approvalCount
-                      ? "等待你的操作确认"
-                      : "Codex 正在处理"}
+                      ? ui("等待你的操作确认")
+                      : ui("Codex 正在处理")}
               </div>
             )}
             {thread?.error && (
@@ -700,7 +892,7 @@ function App() {
           </div>
           <div className="composer-area">
             {attachments.length > 0 && (
-              <div className="draft-files" aria-label="待发送文件">
+              <div className="draft-files" aria-label={ui("待发送文件")}>
                 {attachments.map((file) => (
                   <span key={file.root + file.path}>
                     {isPicture(file) ? (
@@ -710,7 +902,7 @@ function App() {
                     )}
                     <span>{file.name}</span>
                     <button
-                      aria-label={"移除附件：" + file.name}
+                      aria-label={ui("移除附件：") + file.name}
                       onClick={() =>
                         setAttachments((a) => a.filter((f) => f !== file))
                       }
@@ -726,7 +918,7 @@ function App() {
                 {error}
                 <button
                   className="icon-button"
-                  aria-label="关闭错误提示"
+                  aria-label={ui("关闭错误提示")}
                   onClick={() => setError("")}
                 >
                   <Icon name="close" size={16} />
@@ -735,9 +927,9 @@ function App() {
             )}
             {state.runtime !== "connected" && (
               <div className="connect-strip">
-                <span>连接本机 Codex，继续你的任务</span>
+                <span>{ui("连接本机 Codex，继续你的任务")}</span>
                 <button disabled={busy} onClick={connect}>
-                  {busy ? "正在连接…" : "重新连接"}
+                  {busy ? ui("正在连接…") : ui("重新连接")}
                 </button>
               </div>
             )}
@@ -761,7 +953,7 @@ function App() {
                 hidden
                 multiple
                 accept="image/*"
-                aria-label="选择图片"
+                aria-label={ui("选择图片")}
                 onChange={(e) => {
                   void imageUploads.upload(Array.from(e.target.files || []));
                   e.target.value = "";
@@ -769,9 +961,9 @@ function App() {
               />
               {imageUploads.uploading && (
                 <div className="image-upload-progress" role="status">
-                  {imageUploads.progress || "正在上传…"}
+                  {imageUploads.progress || ui("正在上传…")}
                   <button type="button" onClick={imageUploads.cancel}>
-                    取消上传
+                    {ui("取消上传")}
                   </button>
                 </div>
               )}
@@ -782,10 +974,10 @@ function App() {
                 onChange={(e) => setText(e.target.value)}
                 placeholder={
                   state.desktop?.active
-                    ? "发送任务时交给 Codex，桌面保持连接"
-                    : "说说你想做什么…"
+                    ? ui("发送任务时交给 Codex，桌面保持连接")
+                    : ui("说说你想做什么…")
                 }
-                aria-label="消息"
+                aria-label={ui("消息")}
                 onKeyDown={(e) => {
                   if (
                     e.key === "Enter" &&
@@ -802,8 +994,8 @@ function App() {
                 <button
                   className="composer-images"
                   type="button"
-                  aria-label="添加图片"
-                  title="添加图片，可粘贴或拖入"
+                  aria-label={ui("添加图片")}
+                  title={ui("添加图片，可粘贴或拖入")}
                   disabled={imageUploads.uploading || !token}
                   onClick={() => imagePicker.current?.click()}
                 >
@@ -812,8 +1004,8 @@ function App() {
                 <button
                   className="composer-files"
                   type="button"
-                  aria-label="文件上传与下载"
-                  title="文件上传与下载"
+                  aria-label={ui("文件上传与下载")}
+                  title={ui("文件上传与下载")}
                   onClick={() => showFiles(true)}
                 >
                   <Icon name="folder" size={18} />
@@ -825,25 +1017,26 @@ function App() {
                       (state.runtime === "connected" ? "" : "offline")
                     }
                   />
-                  Codex <span className="composer-separator">/</span> 本机 Mac
+                  Codex <span className="composer-separator">/</span>
+                  {ui("本机 Mac")}
                 </span>
                 <button
                   className="composer-guide"
                   type="button"
                   onClick={() => showGuide(!guide)}
-                  aria-label="权限与电脑设置"
+                  aria-label={ui("权限与电脑设置")}
                 >
                   <Icon name="settings" size={16} />
                   <span className="permission-mode-label">
                     {state.permissions?.fullAccess === false
-                      ? "按需确认"
-                      : "全部允许"}
+                      ? ui("按需确认")
+                      : ui("全部允许")}
                   </span>
                 </button>
-                <span className="keyboard-shortcut">↵ 发送</span>
+                <span className="keyboard-shortcut">{ui("↵ 发送")}</span>
                 {syncing ? (
                   <button type="button" disabled>
-                    同步中
+                    {ui("同步中")}
                   </button>
                 ) : localRunning ? (
                   <button
@@ -856,11 +1049,11 @@ function App() {
                     }
                   >
                     <span />
-                    停止
+                    {ui("停止")}
                   </button>
                 ) : externalRunning ? (
                   <button type="button" disabled>
-                    另一端执行中
+                    {ui("另一端执行中")}
                   </button>
                 ) : (
                   <button
@@ -869,13 +1062,15 @@ function App() {
                     }
                     disabled={
                       busy ||
+                      imageUploads.uploading ||
+                      network !== "online" ||
                       (!text.trim() && !attachments.length) ||
                       state.runtime !== "connected"
                     }
-                    aria-label="发送消息"
+                    aria-label={ui("发送消息")}
                   >
                     {state.desktop?.active ? (
-                      "交给 Codex"
+                      ui("交给 Codex")
                     ) : (
                       <Icon name="arrow" size={21} />
                     )}
@@ -885,7 +1080,7 @@ function App() {
             </form>
             <p className="footnote">
               <Icon name="lock" size={12} />
-              对话与电脑，留在你的掌握中
+              {ui("对话与电脑，留在你的掌握中")}
             </p>
           </div>
         </section>
@@ -916,7 +1111,7 @@ function App() {
             />
           ) : (
             <div className="desk-loading" role="status">
-              正在连接你的 Mac…
+              {ui("正在连接你的 Mac…")}
             </div>
           )}
         </div>
@@ -937,7 +1132,7 @@ function App() {
           }}
         />
       )}
-      <nav className="mobile-nav" aria-label="手机导航">
+      <nav className="mobile-nav" aria-label={ui("手机导航")}>
         <button
           aria-current={!panel ? "page" : undefined}
           onClick={() => {
@@ -950,7 +1145,7 @@ function App() {
             <Icon name="chat" />
             {approvalCount > 0 && <i>{approvalCount}</i>}
           </span>
-          对话
+          {ui("对话")}
         </button>
         <button
           aria-current={panel ? "page" : undefined}
@@ -960,7 +1155,7 @@ function App() {
           }}
         >
           <Icon name="monitor" />
-          电脑
+          {ui("电脑")}
         </button>
       </nav>
     </div>
