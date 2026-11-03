@@ -506,6 +506,7 @@ function App() {
           )}
           {writerBusy && (
             <SessionConnection
+              key={selected}
               threadId={selected}
               post={post}
               onSnapshot={(next) => {
