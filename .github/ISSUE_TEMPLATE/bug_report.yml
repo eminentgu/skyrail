@@ -1,12 +1,12 @@
 name: Bug report / 问题反馈
-description: 报告可复现的问题；请勿上传密码或私人桌面。
+description: Report a reproducible issue. No credentials or private desktop captures. / 报告可复现问题，勿附凭据或私人桌面。
 labels: [bug]
 body:
   - type: textarea
     id: environment
     attributes:
       label: Environment / 环境
-      description: commit、macOS、浏览器；触屏问题请注明手机型号与系统。
+      description: Commit, macOS, browser; phone model/OS for touch issues. / commit、macOS、浏览器；触屏问题注明手机型号与系统。
     validations:
       required: true
   - type: textarea
@@ -19,6 +19,11 @@ body:
     id: actual
     attributes:
       label: Actual result / 实际结果
-      description: 是否全屏、目标应用、权限与控制权状态；截图及日志请脱敏。
+      description: Target app, fullscreen, permission and control state; redact logs/screenshots. / 目标应用、全屏、权限和控制权状态，日志截图须脱敏。
     validations:
       required: true
+  - type: textarea
+    id: preflight
+    attributes:
+      label: Relevant doctor results / 相关环境诊断结果
+      description: Run npm run doctor and paste only relevant check lines. Never attach .data or credentials. / 运行 npm run doctor，仅粘贴相关检查行，勿附 .data 或凭据。

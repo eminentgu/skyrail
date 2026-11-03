@@ -1,39 +1,43 @@
 # Contributing to Skyrail
 
-感谢参与。Skyrail 是早期 macOS 项目，欢迎中文或英文 Issue / PR。先查看已有问题；较大的架构或协议变更请先开 Issue 说明用途和取舍。
+[简体中文](CONTRIBUTING.zh-CN.md) · [Setup and local testing](docs/GETTING-STARTED.md)
 
-## 本地开发
+Skyrail is an early macOS project. English and Chinese issues and PRs are welcome. Check existing issues first; discuss large architecture or protocol changes before implementing them.
 
-需要 macOS 14+、Xcode Command Line Tools、Node.js 22+，真实聊天另需已登录的 Codex CLI。
+## Local development
+
+Use Node.js 22.12+ (22 in CI). JavaScript tests, frontend builds and the UI do not need GUI permissions. Real chat needs an authenticated Codex CLI. Native features need macOS 14+ and Xcode Command Line Tools.
 
 ```sh
 npm ci
-npm run setup:mac
+npm run doctor
 npm run dev
 ```
 
-`CODEX_BIN` 可以指定 Codex 路径。Linux CI 可以检查前端和纯 JavaScript 测试，不能证明 Mac 行为。原生程序采用临时签名，重编译可能要求重新授予权限。
+Use `CODEX_BIN` when Codex is not on PATH. Build the native adapter with `npm run setup:mac` only when testing native features. Ad-hoc signing means rebuilding may invalidate system permission grants. Linux checks cannot establish Mac behavior.
 
-## 提交前
+## Before submitting
 
 ```sh
 npm test
 npm run build
-npm run setup:mac  # 修改 Swift 时，在 Mac 上执行
+npm run setup:mac  # on macOS, after Swift changes
 ```
 
-输入、权限、控制权、会话迁移等行为变更需有针对性的回归测试。文案和样式变更附截图、尺寸和交互说明。触屏变更分别记录浏览器模拟与实际手机结果；没有设备时明确写未验证。真实模型冒烟测试会调用用户的 Codex，CI 不运行它们。
+Add focused regression coverage for input, authorization, control ownership and session migration changes. UI changes should include relevant dimensions and screenshots with synthetic content. Distinguish touch simulation from actual phone testing. Model smoke scripts use the user's account and do not run in CI; see the setup guide.
 
-PR 请说明解决的问题、行为变化、验证结果和剩余限制。不要附 `.data/`、`workspaces/`、Cookie、聊天记录、远程密码、Cloudflare token 或包含私人桌面的截图。使用虚构数据复现。
+Keep English and Chinese user guides aligned when changing setup, permissions, limits or workflows. State the concrete problem, resulting behavior, validation and remaining limits in the PR. Do not commit `.data/`, `workspaces/`, credentials, cookies, conversations, tunnel tokens or personal desktop screenshots.
 
-## 设计与代码
+## Design and implementation
 
-- 延续 [设计依据](docs/DESIGN.md) 与 [.impeccable.md](.impeccable.md)。
-- 视频采集与模型观察分离。配置帧率不是实测性能。
-- 电脑写操作遵守线程、应用、epoch 和客户端控制权；不能绕过闸门补做失败操作。
-- 结果未知的写操作不能自动重试；错误、取消和断连需释放输入。
-- 不为新依赖复制整套实现；第三方代码与资源需保留许可和来源。
+- Follow [design guidance](docs/DESIGN.md) and [.impeccable.md](.impeccable.md).
+- Keep video streaming separate from model observation. Configured FPS is not measured performance.
+- Enforce thread/app/epoch/client ownership at dispatch; never work around a rejected input gate.
+- Unknown write outcomes must not be retried automatically. Release input on failure, cancellation and disconnect.
+- Retain third-party attribution and licenses.
 
-提交贡献即表示你有权以项目 MIT 许可证提供这些内容。维护为尽力支持，没有响应时限或商业 SLA。
+## Protected main
 
-会话同步修改还可运行 `node scripts/smoke-session-sync.mjs`，它需要运行中的本地服务及真实 Codex 登录，会调用三轮模型。成功后只清理自己创建的 QA 对话；`--keep` 保留验收记录。锁屏检测可用 `npm run setup:session` 独立构建，避免为了更新状态探测而重签已授权的 Mac app。
+Push a feature branch and open a PR. Main requires a PR, passing Linux/macOS checks on an up-to-date branch, and resolved review threads; force pushes and deletion are blocked. The single-maintainer setup requires zero approving reviews so the owner can merge their own PR after checks. There is no bypass list. CODEOWNERS identifies maintenance responsibility; it does not grant write access. Recheck the rules when adding maintainers or renaming CI jobs. See [maintainer notes](docs/MAINTAINERS.md).
+
+Contributions are offered under MIT with the contributor's authority to do so. Support is best effort without an SLA.
