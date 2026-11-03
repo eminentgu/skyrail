@@ -5,9 +5,9 @@
   </picture>
 </p>
 
-<h1 align="center">你的 Codex 和 Mac，随时接续。</h1>
+<h1 align="center">本地 Codex，浏览器里的 Computer Use。</h1>
 
-<p align="center">继续对话 · 传递文件 · 查看画面 · 人工接手</p>
+<p align="center">本地搭建 · 浏览器实时串流 · AI 操作应用 · 随时人工接管</p>
 
 <p align="center"><a href="README.md">English</a> · <strong>简体中文</strong></p>
 
@@ -22,10 +22,10 @@
 
 ---
 
-Skyrail 是面向 Codex 和 Mac 的本地优先网页界面。通过电脑或手机浏览器继续已有会话，在同一处完成对话、文件传递与电脑操作。
+**Skyrail 是基于本地 Codex 的浏览器流式 Computer Use 工作台。** 在自己的 Mac 上运行 Codex 与电脑控制服务，通过电脑或手机浏览器实时查看应用 / 桌面画面，让 AI 操作应用，或随时人工接管。用已有的 Codex，在本地搭建属于自己的 **Dot / Grok bot / Hark 风格体验**。
 
 > [!NOTE]
-> **早期版本 · 自行部署 · 单用户。** 当前不提供托管服务或公证安装包；手机真机、跨应用输入和锁屏登录仍有验收缺口。[查看验证记录](docs/VALIDATION.md)。
+> **早期版本 · 自行部署 · 单用户。**
 
 <p align="center">
   <picture>
@@ -40,8 +40,8 @@ Skyrail 是面向 Codex 和 Mac 的本地优先网页界面。通过电脑或手
 
 <table>
   <tr>
-    <td width="50%" valign="top"><strong>接着上次，继续工作</strong><br><br>按项目打开 Codex 会话，保留原会话 ID、工作目录与历史。</td>
-    <td width="50%" valign="top"><strong>手机也是工作入口</strong><br><br>触控板手势、双指缩放、文字输入，以及对话 / 电脑两页切换。</td>
+    <td width="50%" valign="top"><strong>本地 Codex Computer Use</strong><br><br>Codex 负责执行，Mac 原生组件连接真实应用；沿用已有会话、文件与工作目录。</td>
+    <td width="50%" valign="top"><strong>浏览器里的实时电脑画面</strong><br><br>应用画面实时串流到电脑或手机浏览器，支持触控板、缩放与文字输入。</td>
   </tr>
   <tr>
     <td width="50%" valign="top"><strong>看见进度，随时接手</strong><br><br>查看所选应用；通过 macOS 屏幕共享人工操作整个桌面。</td>
@@ -98,6 +98,8 @@ npm run dev
 人工整桌面操作使用 macOS 屏幕共享 / noVNC，模型操作应用使用 Skyrail 自建 Swift 组件。发送任务会暂停人工键鼠并保留桌面串流，点击“接手操作”恢复人工输入。该机制只协调 Skyrail 路径，不约束其他程序或物理键鼠。
 
 
+会话被占用时，可“检查占用连接”，核对受影响连接数量，再显式确认结束占用并连接原会话。共享后台进程中的其他任务也会中断，历史和草稿保留，不自动重发。文件卡住时可使用有时限的本地文件检查，见[故障排查](SUPPORT.zh-CN.md)。
+
 </details>
 
 ## 远程访问与更新
@@ -116,6 +118,20 @@ npm run dev
 - 锁屏会暂停应用采集与输入；人工锁屏登录需要本人认证，仍须真机验收。
 - 观看或执行任务时可保持系统运行；应用采集可能点亮物理屏幕。headless 模式需另行验证显示环境。
 - Codex shell / MCP 能力不等于 OS 沙箱；开启远程或完整权限前请阅读[安全边界](SECURITY.md)。
+
+## 常见问题
+
+### 什么是浏览器流式 Computer Use？
+
+电脑控制服务运行在你的 Mac，浏览器接收实时应用 / 桌面画面并承载交互；模型通过 Skyrail 原生工具按需观察和操作应用。持续画面串流与模型截图分开，不把每一帧视频送给模型。人工整桌面接管使用 macOS 屏幕共享。
+
+### 能否在本地搭建自己的 Dot、Grok bot 或 Hark 体验？
+
+Skyrail 面向希望自行搭建类似 AI 对话、实时电脑画面与人工接管体验的用户，以本地 Codex 和浏览器为入口。这些名称用于说明体验方向，并不表示官方集成或功能完全一致。
+
+### “本地 Codex”代表模型完全离线吗？
+
+本地指 Codex 运行时、Mac 操作组件和网页服务在自己的电脑上运行；模型请求使用你的 Codex 账户和所配置的服务，不等于本地离线推理。
 
 ## 继续探索
 

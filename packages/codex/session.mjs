@@ -14,7 +14,7 @@ export async function prepareSession(codex,thread,{cwd,tools,instructions,resume
   // Unload our idle copy after external edits so resume reads persisted history.
   if(resumed.has(thread.id)&&thread.needsResume)await releaseSession(codex,thread,resumed);
   if(!resumed.has(thread.id)){
-   await codex.rpc('thread/resume',{threadId:thread.codexId,cwd:thread.cwd||cwd,...sessionPermissions(fullAccess),developerInstructions:instructions});resumed.add(thread.id);
+   await codex.rpc('thread/resume',{threadId:thread.codexId,excludeTurns:true,cwd:thread.cwd||cwd,...sessionPermissions(fullAccess),developerInstructions:instructions});resumed.add(thread.id);
   }
  }
  thread.appliedFullAccess=fullAccess;thread.needsResume=false;

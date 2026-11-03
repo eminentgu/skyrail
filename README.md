@@ -5,9 +5,9 @@
   </picture>
 </p>
 
-<h1 align="center">Your Codex and Mac, side by side.</h1>
+<h1 align="center">Local Codex. Live Computer Use.</h1>
 
-<p align="center">Continue a conversation. Share a file. See your Mac. Take over.</p>
+<p align="center">Self-host on your Mac. Stream to a browser. Let AI act. Take over.</p>
 
 <p align="center"><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
 
@@ -22,10 +22,10 @@
 
 ---
 
-Skyrail is a local-first web interface for Codex and your Mac. Continue existing sessions from a desktop or phone browser, with conversations, files and computer control in one place.
+**Skyrail is a self-hosted, browser-streamed Computer Use workspace powered by local Codex.** Run Codex and the control service on your own Mac, stream live app or desktop views to a desktop or phone browser, let AI operate applications, and take over yourself. Build your own **Dot / Grok bot / Hark-style experience** around the Codex runtime you already use.
 
 > [!NOTE]
-> **Early access · self-hosted · single user.** No hosted service or notarized installer. Real phones, cross-app input and lock-screen login still have acceptance gaps. [See validation records](docs/VALIDATION.md).
+> **Early access · self-hosted · single user.**
 
 <p align="center">
   <picture>
@@ -40,8 +40,8 @@ Skyrail is a local-first web interface for Codex and your Mac. Continue existing
 
 <table>
   <tr>
-    <td width="50%" valign="top"><strong>Pick up where you left off</strong><br><br>Open Codex sessions by project, keeping their original IDs, working directories and history.</td>
-    <td width="50%" valign="top"><strong>A workspace that travels</strong><br><br>Phone trackpad gestures, pinch-to-zoom, text entry, and a simple chat/computer switch.</td>
+    <td width="50%" valign="top"><strong>Local Codex Computer Use</strong><br><br>Codex drives execution; native Mac tools connect to real apps. Keep your sessions, files and working directories.</td>
+    <td width="50%" valign="top"><strong>A live computer view in your browser</strong><br><br>Stream app views to a desktop or phone browser, with trackpad gestures, zoom and text input.</td>
   </tr>
   <tr>
     <td width="50%" valign="top"><strong>See the work. Step in.</strong><br><br>Watch a selected app; use macOS Screen Sharing to control the whole desktop yourself.</td>
@@ -98,6 +98,8 @@ Confirmed history comes from Codex's durable session records. Skyrail stores UI 
 Manual full-desktop control uses macOS Screen Sharing/noVNC; agent app control uses Skyrail's own Swift adapter. Sending a task parks manual keyboard/mouse input while retaining the desktop stream. Use **Take over** to resume manual input. This coordinates Skyrail clients, not every program or physical input device on the Mac.
 
 
+If a session is occupied, inspect its owning connection, review the affected connection count, and explicitly confirm ending it before reconnecting. Other tasks sharing that process also stop; history and drafts remain and are not automatically resent. For stalled files, use the bounded checks in [troubleshooting](SUPPORT.md).
+
 </details>
 
 ## Remote access and updates
@@ -116,6 +118,20 @@ The managed service serves a fixed frontend build; development uses Vite. Build 
 - Locking the Mac pauses app capture/input. Manual lock-screen login needs your own authentication and real-device acceptance.
 - Active viewing/tasks can keep the system awake; app capture may light the physical display. Headless mode needs a separately validated display setup.
 - Codex shell/MCP access is not an OS sandbox. Read [security boundaries](SECURITY.md) before enabling remote or full access.
+
+## Frequently asked questions
+
+### What is browser-streamed Computer Use?
+
+The control service runs on your Mac while a browser receives live app or desktop views and provides the interaction surface. The model observes and operates apps on demand through Skyrail's native tools. Continuous viewing and model screenshots use separate paths; every video frame is not sent to the model. Manual whole-desktop takeover uses macOS Screen Sharing.
+
+### Can I self-host a Dot, Grok bot or Hark-style experience?
+
+Skyrail is for people who want to build a similar combination of AI conversations, a live computer view and human takeover on their own Mac, using local Codex and a browser. These names describe the experience direction, not official integrations or complete feature parity.
+
+### Does local Codex mean an offline model?
+
+Local refers to the Codex runtime, Mac control components and web service running on your own machine. Model requests use your Codex account and configured service; this does not mean offline local inference.
 
 ## Explore the docs
 

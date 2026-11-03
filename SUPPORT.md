@@ -48,17 +48,30 @@ Read `.data/remote-access.txt` on the host; do not share its contents. The proje
 
 ## A synchronized Codex session cannot continue
 
-The same native session permits one writer. Finish and release it in the other client first; do not forcibly steal the session. Skyrail closes its writer after each completed turn, retaining a read-only history connection. Copy the ID and use `codex resume <SESSION_ID>` in another client after release. Imported sessions retain their original tool configuration; history sync does not copy host-specific tools.
+The same native session permits one writer. Finish and release it in the other client first. Alternatively, choose **检查占用连接** (inspect the occupying connection), review the affected session count, and explicitly confirm **确认结束占用并连接原会话** (end the owner and reconnect). This ends the actual owning Codex background process, including other tasks sharing it. Records and drafts remain; Skyrail does not delete lock files, create replacement sessions or automatically resend the draft. If ownership changes, inspect again. Skyrail closes its writer after each completed turn, retaining a read-only history connection. Copy the ID and use `codex resume <SESSION_ID>` in another client after release. Imported sessions retain their original tool configuration; history sync does not copy host-specific tools.
 
 ## Commands or files are denied
 
-Check **Allow all operations** in composer settings. Change it only when tasks are idle; the next task resumes the same session with the selected policy. `EPERM` / `Operation not permitted` can mean macOS folder restrictions, even in full access. Grant only the required directory permission. Full Disk Access is optional and cannot replace administrator rights or system GUI permissions.
+Check **Allow all operations** in composer settings. Change it only when tasks are idle; the next task resumes the same session with the selected policy. `EPERM` / `Operation not permitted` can mean macOS folder restrictions, even in full access. The managed service accesses files as `.data/Skyrail Mac.app`, whose grants are separate from Codex or Terminal. Grant only the required directory permission, or Full Disk Access when needed for your chosen files, then restart the service. Full Disk Access is optional and cannot replace administrator rights or system GUI permissions.
 
 ## Uploads and downloads
 
 Use the folder button to upload files or attach workspace files. The per-file upload limit is 50 MiB; interrupted uploads are cleaned up and same-name uploads are isolated. Refresh project outputs before downloading, or use the generated file links in replies. Test with synthetic files first. Browser automation's file-URL setting is not required for a user's normal file picker.
 
 Logs live in `.data/`; remove credentials, cookies, private paths and conversation content before sharing. Do not attach `.data/`, `workspaces/`, personal desktop captures or full raw diagnostics to a public issue.
+
+## Local files stop responding
+
+Distinguish approval denial, macOS EPERM and storage timeouts. Full access does not grant macOS privacy permission or fix a stalled cloud-file provider. A Spotlight miss does not prove a file is absent.
+
+The built-in skill can run bounded file checks under the current command permissions:
+
+```sh
+node scripts/local-files.mjs find 'filename keyword' "$HOME/Desktop"
+node scripts/local-files.mjs probe '/absolute/path/to/document.docx'
+```
+
+Each check has an eight-second deadline. Discovery scans one directory level, at most 2,000 entries and 30 candidates; numeric fallback matches are labeled as candidates. A timeout returns `complete:false`; stop rather than launch repeated scans. `probe` reads only the file header, not Word body text or comments. Text extraction needs its own deadline. Check cloud download state and privacy grants, or upload a copy if needed.
 
 ---
 

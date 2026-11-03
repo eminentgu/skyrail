@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
+import { SessionConnection } from "./SessionConnection";
 import { FilesPanel, type Attachment } from "./FilesPanel";
 import { PermissionSettings } from "./PermissionSettings";
 import {
@@ -18,6 +19,8 @@ type Thread = {
   messages: Message[];
   status: string;
   error?: string;
+  errorCode?: string;
+  retryDraft?: { text: string; attachments?: Attachment[] };
   cwd?: string;
   codexId?: string;
   imported?: boolean;
@@ -300,6 +303,19 @@ function App() {
       }
     });
   }
+  const writerBusy =
+    !!thread?.codexId &&
+    (thread.errorCode === "writer_busy" ||
+      /active writer|另一客户端占用/.test(thread.error || "") ||
+      thread.status === "external_running");
+  useEffect(() => {
+    if (thread?.retryDraft && writerBusy) {
+      setText((previous) => previous || thread.retryDraft!.text);
+      setAttachments((previous) =>
+        previous.length ? previous : thread.retryDraft!.attachments || [],
+      );
+    }
+  }, [selected, thread?.retryDraft?.text]);
   const runtimeLabel =
     state.runtime === "connected"
       ? "已连接"
@@ -487,6 +503,17 @@ function App() {
                 {thread.syncError && <small>{thread.syncError}</small>}
               </div>
             </details>
+          )}
+          {writerBusy && (
+            <SessionConnection
+              key={selected}
+              threadId={selected}
+              post={post}
+              onSnapshot={(next) => {
+                setState(next);
+                setError("");
+              }}
+            />
           )}
           {guide && (
             <div className="chat-guide">

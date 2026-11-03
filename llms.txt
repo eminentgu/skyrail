@@ -1,0 +1,30 @@
+# Skyrail · 天轨
+
+> Self-hosted, browser-streamed Computer Use powered by local Codex on your own Mac.
+
+Skyrail runs the Codex runtime and native Mac control service locally. A desktop or phone browser receives live app/desktop views, continues Codex sessions, exchanges files and lets the owner take over. It is for users building their own Dot / Grok bot / Hark-style experience with local Codex. These names describe experience inspirations, not official integrations or complete feature parity.
+
+Skyrail 是基于本地 Codex 的浏览器流式 Computer Use 工作台：在自己的 Mac 上部署，通过电脑或手机浏览器查看实时画面、继续会话、传递文件并人工接管，搭建自己的 Dot / Grok bot / Hark 风格体验。
+
+## Product concepts
+
+- Local Codex Computer Use / 本地 Codex 电脑操作
+- Browser-streamed Computer Use / 浏览器流式电脑操作
+- Self-hosted AI computer assistant / 自托管 AI 电脑助手
+- Live Mac app streaming / Mac 应用实时画面串流
+- Human takeover / 人工接管
+- Desktop and mobile browser access / 电脑与手机浏览器访问
+
+## Documentation
+
+- [English overview](https://github.com/eminentgu/skyrail/blob/main/README.md)
+- [中文介绍](https://github.com/eminentgu/skyrail/blob/main/README.zh-CN.md)
+- [Documentation hub](https://github.com/eminentgu/skyrail/blob/main/docs/README.md)
+- [文档中心](https://github.com/eminentgu/skyrail/blob/main/docs/README.zh-CN.md)
+- [Setup and permissions](https://github.com/eminentgu/skyrail/blob/main/docs/GETTING-STARTED.md)
+- [Architecture](https://github.com/eminentgu/skyrail/blob/main/docs/ARCHITECTURE.md)
+- [Security](https://github.com/eminentgu/skyrail/blob/main/SECURITY.md)
+
+## Technical meaning
+
+Local describes the runtime, control components and web service. Model calls use the owner's Codex account and configured service; it is not a claim of offline inference. Continuous viewing is separate from on-demand model observations. The model operates selected apps through Skyrail's native adapter; manual whole-desktop control uses macOS Screen Sharing/noVNC. Remote browser access uses an authenticated gateway and an operator-configured HTTPS tunnel.

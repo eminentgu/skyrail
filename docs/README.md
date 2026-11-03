@@ -4,6 +4,8 @@
 
 English · [简体中文](README.zh-CN.md)
 
+Skyrail is a self-hosted, browser-streamed Computer Use workspace powered by local Codex. Build your own Dot / Grok bot / Hark-style experience on your Mac.
+
 Start small. Add computer permissions and remote access when you need them.
 
 > [!TIP]

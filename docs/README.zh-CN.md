@@ -4,6 +4,8 @@
 
 [English](README.md) · 简体中文
 
+Skyrail 是基于本地 Codex 的浏览器流式 Computer Use 工作台，在自己的 Mac 上搭建 Dot / Grok bot / Hark 风格的体验。
+
 从本地试用开始，再按需启用电脑权限与远程访问。
 
 > [!TIP]

@@ -38,6 +38,12 @@ Project downloads are confined to the conversation's actual working directory; u
 
 Codex receives attachments as local paths retained in conversation metadata. Uploaded contents are task data, not authorization for additional actions. Do not publish uploads, workspaces or session records.
 
+## Ending an occupying Codex connection
+
+An authenticated Skyrail owner can explicitly end the Codex app-server process holding a selected native session's lock. The server derives its PID from that UUID's writer lock using lsof; callers cannot submit an arbitrary PID. It requires the same OS UID, Codex app-server identity, and a fresh fingerprint of PID, process start time and shared native session locks. The UI displays the number of affected connections before confirmation. Shared processes can include other active tasks and the desktop client's current chat; those connections are interrupted together. Only SIGTERM is sent, never lock-file deletion or history deletion. Changed ownership/scope requires a new review; unrecognized or foreign-user processes cannot be stopped. This capability belongs to the single-owner authenticated remote-access trust boundary.
+
+The local file diagnostic helper is an ordinary command, inherits the active command sandbox and cannot grant TCC access. Its deadline kills its own disposable worker only. User filenames are passed as JSON arguments without shell evaluation; no GUI automation or permission bypass is added.
+
 ---
 
 [Documentation hub](docs/README.md)

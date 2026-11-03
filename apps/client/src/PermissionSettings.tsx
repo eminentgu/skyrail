@@ -74,7 +74,7 @@ export function PermissionSettings({
         </span>
       </div>
       <small>
-        macOS 的桌面、文稿、完全磁盘访问权限仍由系统管理，无法由此开关代替授权。
+        macOS 的文件权限独立管理。请为常驻应用 Skyrail Mac 开启完全磁盘访问，授权后重启服务；此开关无法代替系统授权。
       </small>
       <button
         onClick={() =>
