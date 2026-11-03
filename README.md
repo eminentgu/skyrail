@@ -69,7 +69,7 @@ npm run doctor
 npm run dev
 ```
 
-Open **http://127.0.0.1:4317**. Stop the foreground server with Ctrl+C. If Codex is not on PATH, use `CODEX_BIN=/absolute/path/to/codex npm run dev`.
+Open **[http://127.0.0.1:4317](http://127.0.0.1:4317)**. Stop the foreground server with Ctrl+C. If Codex is not on PATH, use `CODEX_BIN=/absolute/path/to/codex npm run dev`.
 
 > [!IMPORTANT]
 > Before sending your first task, open the composer settings and turn off **Allow all operations** if you want workspace-scoped execution with approvals. Full access is currently the default; it does not grant macOS permissions.

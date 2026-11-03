@@ -69,7 +69,7 @@ npm run doctor
 npm run dev
 ```
 
-打开 **http://127.0.0.1:4317**，按 Ctrl+C 停止前台服务。若 PATH 中没有 Codex，使用 `CODEX_BIN=/absolute/path/to/codex npm run dev` 启动。
+打开 **[http://127.0.0.1:4317](http://127.0.0.1:4317)**，按 Ctrl+C 停止前台服务。若 PATH 中没有 Codex，使用 `CODEX_BIN=/absolute/path/to/codex npm run dev` 启动。
 
 > [!IMPORTANT]
 > 首次发送任务前，如需工作区权限与按需确认，请在输入框设置中关闭“允许全部操作”。当前默认开启完整权限，它不能代替 macOS 系统授权。

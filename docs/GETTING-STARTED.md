@@ -30,7 +30,7 @@ npm run build
 npm run dev
 ```
 
-Open **http://127.0.0.1:4317**. The UI and conversation/computer navigation should load even when the native helper is not built or permissions are denied. Decline permission prompts during this stage. Missing Mac components should be reported in the computer panel rather than treated as successful control.
+Open **[http://127.0.0.1:4317](http://127.0.0.1:4317)**. The UI and conversation/computer navigation should load even when the native helper is not built or permissions are denied. Decline permission prompts during this stage. Missing Mac components should be reported in the computer panel rather than treated as successful control.
 
 Verify the page, navigation, settings and visible errors. JavaScript tests use temporary data and simulated boundaries; they do not need Codex login or real GUI control. Linux can run tests and the frontend build, but cannot validate native Mac features.
 
