@@ -6,6 +6,8 @@
 
 先运行 `npm run doctor`。缺少 GUI 权限时，仍可测试网页、构建、JS 和纯聊天。[GitHub Issues](https://github.com/eminentgu/skyrail/issues) 接受中文或英文反馈，请提供 commit / 版本、macOS、浏览器 / 设备、目标应用、复现步骤及预期 / 实际结果。安全问题遵循 [SECURITY.zh-CN.md](SECURITY.zh-CN.md)。
 
+![排查功能可用性时的权限关系](docs/assets/permissions-zh.svg)
+
 ## 安装或启动失败
 
 使用 Node.js 22.12+，先完成 `npm ci` 再运行测试或服务。管理网络证书链问题见[安装指南](docs/GETTING-STARTED.zh-CN.md)，保持 TLS 校验开启。

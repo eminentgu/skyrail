@@ -11,6 +11,10 @@ Start small. Add computer permissions and remote access when you need them.
 > [!TIP]
 > You can try the interface, run tests and build Skyrail without macOS GUI permissions. Real text-only tasks only need your own authenticated Codex CLI.
 
+![Skyrail setup at a glance](assets/setup-flow-en.svg)
+
+**[Take a visual tour →](VISUAL-GUIDE.md)**
+
 ## Start here
 
 | Your goal | Read this |

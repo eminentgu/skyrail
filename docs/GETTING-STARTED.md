@@ -7,6 +7,8 @@
 > [!TIP]
 > You can evaluate Skyrail in stages. Start without GUI permissions; add them only when you want to test computer control. A managed work Mac may prohibit Screen Sharing or privacy grants. That limits those features, not the entire project.
 
+![Setup map: run locally, enable computer tools, continue in a browser](assets/setup-flow-en.svg)
+
 ## 1. Check and install
 
 Use Node.js 22.12+ (22 in CI). Native features require macOS 14+ and Xcode Command Line Tools. Install those from Apple's supported channels if missing. Real chat requires your own authenticated Codex CLI; the validated version is `0.165.0-alpha.1.2`.
@@ -50,6 +52,8 @@ Send a harmless request such as `Reply with SKYRAIL_CHAT_OK. Do not use tools.` 
 
 To test attachments, use a small synthetic text file, attach it, ask for a copy in the test workspace, then download and compare the bytes. Do not upload private documents for an initial test. To check session continuity, finish a turn, copy its session ID, release the writer, and open it from another Codex client. Never write the same session from both clients at once.
 
+![Example data: the conversation workspace](assets/workspace-example.png)
+
 ## 4. Build native features
 
 ```sh
@@ -62,6 +66,8 @@ This compiles the Swift helpers and ad-hoc signs `.data/Skyrail Mac.app`; it doe
 For agent app control, grant **Accessibility** and **Screen Recording** to the helper in **System Settings → Privacy & Security**. The identity is the project `.data/Skyrail Mac.app`, not the browser. Start with a harmless app and verify its visible result, not only an API success response. The managed wrapper provides the intended app identity for background operation; direct development launches may require additional diagnosis of macOS attribution. Restart after grants if needed.
 
 Folder access is separate. Grant Desktop/Documents access only for the folders you actually use. Full Disk Access is not required for basic evaluation and does not replace Accessibility or Screen Recording. On a managed device, have the administrator resolve policy restrictions; do not modify TCC databases.
+
+![Permissions by capability](assets/permissions-en.svg)
 
 ## 5. Test manual desktop control separately
 
