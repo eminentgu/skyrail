@@ -11,3 +11,7 @@ When updating screenshots, use an empty local conversation, capture both themes,
 `workspace-example.png`, `projects-example.png`, `permissions-example.png` and `mobile-example.png` are screenshots from the loopback-only synthetic UI fixture (`SKYRAIL_PREVIEW_CHAT=1 node tests/fixtures/desktop-preview.mjs`). They contain invented example data and simulated status. They are labeled as demonstrations, not real model/device acceptance. The mobile capture uses a 390×844 browser viewport.
 
 The paired `*-en.svg` / `*-zh.svg` illustrations cover setup, permissions, remote routing, control handover, architecture and phone gestures. They are repository-native vector diagrams with accessible titles and descriptions. No external fonts, tracking, scripts or generated photographic assets are used.
+
+## Remote-use scene
+
+`remote-demo-en.svg` and `remote-demo-zh.svg` are repository-native scene illustrations of a remote browser, an example app view, and a phone. All interface content and project data are invented. The images carry an explicit illustration label and are not live-device screenshots or proof of mobile acceptance. They contain no external resources, scripts or private content.
