@@ -17,7 +17,7 @@
     "setup:session": "sh scripts/build-session-status.sh",
     "docs:build": "node scripts/build-docs.mjs",
     "docs:preview": "node scripts/preview-docs.mjs",
-    "docs:check": "node --test tests/docs-site.test.mjs"
+    "docs:check": "node --test tests/docs-site.test.mjs tests/docs-theme.test.mjs"
   },
   "dependencies": {
     "@novnc/novnc": "1.7.0",

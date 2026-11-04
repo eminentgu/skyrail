@@ -1,12 +1,6 @@
 (() => {
- const root=document.documentElement,body=document.body,lang=body.dataset.lang,base=body.dataset.base;
+ const body=document.body,lang=body.dataset.lang,base=body.dataset.base;
  const labels=lang==='zh'?{copy:'复制',copied:'已复制',empty:'没有匹配的文档，试试其他关键词。',initial:'输入关键词，搜索全部文档。'}:{copy:'Copy',copied:'Copied',empty:'No matching pages. Try another term.',initial:'Type to search the documentation.'};
- const storedTheme=()=>{try{return localStorage.getItem('skyrail-docs-theme')}catch{return null}};
- const effectiveTheme=()=>root.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
- const updatePictures=()=>{document.querySelectorAll('picture source').forEach(source=>{if(!source.dataset.originalMedia)source.dataset.originalMedia=source.media;if(source.dataset.originalMedia.includes('prefers-color-scheme'))source.media=effectiveTheme()==='dark'?'(min-width:0px)':'(max-width:0px)';});};
- if(storedTheme())root.dataset.theme=storedTheme();updatePictures();
- document.querySelector('[data-theme]')?.addEventListener('click',()=>{const theme=effectiveTheme()==='dark'?'light':'dark';root.dataset.theme=theme;try{localStorage.setItem('skyrail-docs-theme',theme)}catch{}updatePictures();});
- const themeMedia=matchMedia('(prefers-color-scheme:dark)');themeMedia.addEventListener('change',()=>{if(!storedTheme())updatePictures();});
  const navButton=document.querySelector('[data-nav]');
  const closeNav=()=>{body.classList.remove('nav-open');navButton?.setAttribute('aria-expanded','false')};
  navButton?.addEventListener('click',()=>{const open=body.classList.toggle('nav-open');navButton.setAttribute('aria-expanded',String(open));});
@@ -28,4 +22,26 @@
  document.querySelectorAll('.prose figure img,.page-cover img,.story-image>img,.diagram-section img').forEach(img=>{img.tabIndex=0;img.style.cursor='zoom-in';img.setAttribute('aria-label',(lang==='zh'?'放大图片：':'Expand image: ')+img.alt);const show=()=>{viewer.querySelector('img').src=img.currentSrc||img.src;viewer.querySelector('img').alt=img.alt;viewer.querySelector('p').textContent=img.alt;viewer.showModal()};img.addEventListener('click',show);img.addEventListener('keydown',e=>{if(e.key==='Enter')show()})});
  document.querySelector('[data-image-close]')?.addEventListener('click',()=>viewer.close());viewer?.addEventListener('click',e=>{if(e.target===viewer)viewer.close()});
  const headings=document.querySelectorAll('.prose h2,.prose h3');if('IntersectionObserver'in window){const observer=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){document.querySelectorAll('.toc a.active').forEach(a=>a.classList.remove('active'));const target=Array.from(document.querySelectorAll('.toc a')).find(a=>a.hash==='#'+entry.target.id||decodeURIComponent(a.hash)==='#'+entry.target.id);target?.classList.add('active')}},{rootMargin:'-90px 0px -70% 0px'});headings.forEach(h=>observer.observe(h));}
+})();
+
+/* Detail tabs work with pointer, touch and the standard tab-list arrow keys. */
+(() => {
+ const tabs=Array.from(document.querySelectorAll('.tuning-tabs [role="tab"]'));
+ const activate=tab=>{
+  for(const item of tabs){const selected=item===tab;item.setAttribute('aria-selected',String(selected));item.tabIndex=selected?0:-1;document.getElementById(item.getAttribute('aria-controls')).hidden=!selected}
+ };
+ tabs.forEach((tab,i)=>{
+  tab.addEventListener('click',()=>activate(tab));
+  tab.addEventListener('keydown',event=>{
+   const next=event.key==='ArrowRight'?(i+1)%tabs.length:event.key==='ArrowLeft'?(i+tabs.length-1)%tabs.length:event.key==='Home'?0:event.key==='End'?tabs.length-1:null;
+   if(next!==null){event.preventDefault();activate(tabs[next]);tabs[next].focus()}
+  });
+ });
+ const motion=matchMedia('(prefers-reduced-motion: reduce)');
+ if('IntersectionObserver' in window&&!motion.matches){
+  const observer=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){entry.target.classList.remove('reveal-pending');observer.unobserve(entry.target)}},{threshold:0.08});
+  const targets=document.querySelectorAll('.connection-wrap,.intro-section,.story,.tuning-section,.local-section,.diagram-section,.docs-section,.faq-section,.closing');
+  targets.forEach(target=>{target.classList.add('reveal-pending');observer.observe(target)});
+  motion.addEventListener('change',()=>{if(motion.matches){targets.forEach(target=>target.classList.remove('reveal-pending'));observer.disconnect()}});
+ }
 })();

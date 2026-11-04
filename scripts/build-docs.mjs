@@ -16,6 +16,7 @@ await rm(out,{recursive:true,force:true});await mkdir(path.join(out,'assets'),{r
 await cp(path.join(root,'docs/assets'),path.join(out,'assets'),{recursive:true});
 await cp(path.join(root,'website/site.css'),path.join(out,'assets/site.css'));
 await cp(path.join(root,'website/site.js'),path.join(out,'assets/site.js'));
+await cp(path.join(root,'website/theme.js'),path.join(out,'assets/theme.js'));
 await writeFile(path.join(out,'assets/favicon.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#e5eff5"/><path d="m9 30 15-21m-7 21L31 10M7 21h11" stroke="#294a60" stroke-width="3" stroke-linecap="round"/></svg>');
 const clean=s=>s.replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").trim();
 const slug=s=>clean(s).toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu,'').trim().replace(/\s/g,'-');
