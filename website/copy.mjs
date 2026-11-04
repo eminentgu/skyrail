@@ -203,7 +203,18 @@ export const copy = {
     ],
     "connectionCaption": "Locally deployed. Remotely within reach.",
     "themeLight": "Switch to light theme",
-    "themeDark": "Switch to dark theme"
+    "themeDark": "Switch to dark theme",
+    "remoteTag": "A WINDOW INTO YOUR MAC",
+    "remoteTitle": "Open remotely.<br><em>Still your computer.</em>",
+    "remoteText": "Continue the original conversation while keeping the app in view. Your computer stays put; chat, viewing and handover travel with you.",
+    "remoteCaption": "Remote-use illustration · example interfaces and synthetic data, not a live-device capture",
+    "remoteLink": "Explore remote access",
+    "remoteAlt": "Illustrated remote browser with a Codex conversation, app view and phone interface using synthetic example data.",
+    "remotePills": [
+      "Original session",
+      "App-view streaming",
+      "Human takeover"
+    ]
   },
   "zh": {
     "lang": "zh-CN",
@@ -409,6 +420,17 @@ export const copy = {
     ],
     "connectionCaption": "部署在本地，体验延伸到远程。",
     "themeLight": "切换到浅色主题",
-    "themeDark": "切换到深色主题"
+    "themeDark": "切换到深色主题",
+    "remoteTag": "A WINDOW INTO YOUR MAC",
+    "remoteTitle": "远程打开，<br><em>仍是自己的电脑。</em>",
+    "remoteText": "在浏览器里接着原会话沟通，同时看见应用画面。电脑留在原地，对话、观看与接手，随你一起移动。",
+    "remoteCaption": "远程使用场景示意 · 示例界面与虚构数据，非实机直播",
+    "remoteLink": "看看如何远程连接",
+    "remoteAlt": "远程浏览器中的 Codex 对话、应用画面与手机视图，使用示例数据绘制的场景插画。",
+    "remotePills": [
+      "原会话继续",
+      "应用画面串流",
+      "随时人工接手"
+    ]
   }
 };

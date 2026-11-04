@@ -16,18 +16,18 @@ function browser({stored=null,dark=false,denied=false}={}){
  documentListeners.DOMContentLoaded();
  return{root,rootListeners,buttonListeners,attributes,source,media,storage,listeners};
 }
-test('theme clicks bind only to the actual button, never the themed document root',()=>{
- const b=browser();assert.equal(b.root.dataset.theme,'light');assert.equal(b.rootListeners.click,undefined);assert.equal(typeof b.buttonListeners.click,'function');b.buttonListeners.click();assert.equal(b.root.dataset.theme,'dark');assert.equal(b.storage.value,'dark');assert.equal(b.attributes['aria-label'],'Use light');assert.equal(b.source.media,'all');b.buttonListeners.click();assert.equal(b.source.media,'not all');assert.equal(b.attributes['aria-pressed'],'false');
+test('first visit defaults to dark and clicks bind only to the actual theme button',()=>{
+ const b=browser({dark:false});assert.equal(b.root.dataset.theme,'dark');assert.equal(b.rootListeners.click,undefined);assert.equal(typeof b.buttonListeners.click,'function');assert.equal(b.source.media,'all');b.buttonListeners.click();assert.equal(b.root.dataset.theme,'light');assert.equal(b.storage.value,'light');assert.equal(b.attributes['aria-label'],'Use dark');assert.equal(b.source.media,'not all');b.buttonListeners.click();assert.equal(b.source.media,'all');assert.equal(b.attributes['aria-pressed'],'true');
 });
-test('explicit selection survives navigation and takes priority over the system theme',()=>{
- const b=browser({stored:'light',dark:true});assert.equal(b.root.dataset.theme,'light');assert.equal(b.source.media,'not all');b.media.matches=false;b.listeners['media:change']();b.media.matches=true;b.listeners['media:change']();assert.equal(b.root.dataset.theme,'light');assert.equal(browser({stored:b.storage.value,dark:true}).root.dataset.theme,'light');
+test('explicit light selection survives navigation and overrides the default',()=>{
+ const b=browser({stored:'light',dark:true});assert.equal(b.root.dataset.theme,'light');assert.equal(b.source.media,'not all');assert.equal(browser({stored:b.storage.value}).root.dataset.theme,'light');
 });
-test('unset or invalid preferences follow the system, including system changes',()=>{
- for(const stored of [null,'invalid']){const b=browser({stored});b.media.matches=true;b.listeners['media:change']();assert.equal(b.root.dataset.theme,'dark');assert.equal(b.source.media,'all');b.media.matches=false;b.listeners['media:change']();assert.equal(b.root.dataset.theme,'light')}
+test('unset or invalid preferences always use dark, independent of system appearance',()=>{
+ for(const stored of [null,'invalid'])for(const dark of [true,false]){const b=browser({stored,dark});assert.equal(b.root.dataset.theme,'dark');assert.equal(b.source.media,'all')}
 });
-test('cross-tab preference changes update the controls and pictures; clearing restores system mode',()=>{
- const b=browser();b.storage.value='dark';b.listeners.storage({key:'skyrail-docs-theme'});assert.equal(b.root.dataset.theme,'dark');assert.equal(b.source.media,'all');b.storage.value=null;b.listeners.storage({key:null});assert.equal(b.root.dataset.theme,'light');assert.equal(b.attributes['aria-label'],'Use dark');
+test('cross-tab preference changes synchronize pictures; clearing restores the dark default',()=>{
+ const b=browser();b.storage.value='light';b.listeners.storage({key:'skyrail-docs-theme'});assert.equal(b.root.dataset.theme,'light');assert.equal(b.source.media,'not all');b.storage.value=null;b.listeners.storage({key:null});assert.equal(b.root.dataset.theme,'dark');assert.equal(b.attributes['aria-label'],'Use light');
 });
 test('theme remains usable when browser storage is blocked',()=>{
- const b=browser({denied:true,dark:true});assert.equal(b.root.dataset.theme,'dark');b.buttonListeners.click();assert.equal(b.root.dataset.theme,'light');b.listeners['media:change']();assert.equal(b.root.dataset.theme,'light');
+ const b=browser({denied:true,dark:false});assert.equal(b.root.dataset.theme,'dark');b.buttonListeners.click();assert.equal(b.root.dataset.theme,'light');
 });
