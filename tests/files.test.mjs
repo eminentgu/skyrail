@@ -8,6 +8,7 @@ import {
   symlink,
   rm,
   readdir,
+  realpath,
 } from "node:fs/promises";
 import { Readable } from "node:stream";
 import os from "node:os";
@@ -107,4 +108,19 @@ test("project output files are listed and downloadable; directories are not atta
   );
   assert.equal(await handle.readFile("utf8"), "generated");
   await handle.close();
+});
+
+test("local file links allow visible documents and reject hidden files and symlink escapes", async (t) => {
+  const { files, dir } = await fixture(t);
+  const desktop = path.join(dir, "Desktop");
+  await mkdir(desktop);
+  const document = path.join(desktop, "红字版.docx");
+  await writeFile(document, "document");
+  assert.equal(await files.localTarget(document, dir), await realpath(document));
+  await writeFile(path.join(desktop, ".private"), "secret");
+  await symlink(path.join(desktop, ".private"), path.join(desktop, "hidden"));
+  await symlink(path.join(dir, "workspace"), path.join(desktop, "escape"));
+  await writeFile(path.join(dir, "workspace", "private"), "secret");
+  for (const filename of [".private", "hidden", "escape/private", "../workspace/private"])
+    await assert.rejects(files.localTarget(path.join(desktop, filename), dir), { status: 403 });
 });

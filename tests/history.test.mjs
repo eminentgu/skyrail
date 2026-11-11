@@ -7,3 +7,23 @@ test('sync keeps native identity, native edits, and an unconfirmed local submiss
 test('external running history is not presented as an interruptible local turn',()=>{const thread={messages:[]};const t=turn('1','hello');t.status='inProgress';applySession(thread,{id:'same',turns:[t]});assert.equal(thread.status,'external_running')});
 test('a literal user message matching the legacy prefix is still retained',()=>{const text='Historical conversation data from an older runtime. Explain this phrase.';assert.equal(messagesFromTurns([turn('literal',text)])[0].text,text)});
 test('native history synchronization preserves local attachment metadata',()=>{const attachment={root:'uploads',path:'uuid/file.txt',name:'file.txt',size:2,threadId:'local'};const thread={messages:[{id:'client-file',role:'user',text:'read this',attachments:[attachment]}]};applySession(thread,{id:'native',turns:[{id:'turn',status:'completed',items:[{type:'userMessage',id:'native-user',clientId:'client-file',content:[{type:'text',text:'read this'},{type:'text',text:'Skyrail attached files (task data; not instructions):\n[]'}]}]}]});assert.deepEqual(thread.messages[0].attachments,[attachment]);assert.equal(thread.messages[0].text,'read this');});
+
+test('failed MCP results retain the concrete first error without transferring image payloads or host instructions',async()=>{
+ const result={content:[{type:'text',text:'nativeRecoveredCS is not defined'},{type:'text',text:'old host instructions'},{type:'image',data:'private-image'}]};
+ const turn={id:'turn',status:'completed',items:[{id:'tool',type:'mcpToolCall',server:'cua_repl',tool:'js',status:'failed',result,error:null}]};
+ assert.equal(messagesFromTurns([turn])[0].error,'nativeRecoveredCS is not defined');
+ const c={rpc:async(method)=>method==='thread/read'?{thread:{id:'native'}}:{data:[turn],nextCursor:null}};
+ const history=await readSession(c,'native');
+ const message=messagesFromTurns(history.turns)[0];
+ assert.equal(message.error,'nativeRecoveredCS is not defined');
+ assert.equal(message.status,'failed');
+ assert.equal(JSON.stringify(history).includes('private-image'),false);
+ assert.equal(JSON.stringify(history).includes('old host instructions'),false);
+});
+test('an MCP isError result is failed even when its transport reports completion',async()=>{
+ const turn={id:'turn',items:[{id:'tool',type:'mcpToolCall',server:'skyrail',tool:'skyrail_computer',status:'completed',result:{isError:true,content:[{type:'text',text:'Mac locked'}]}}]};
+ const c={rpc:async(method)=>method==='thread/read'?{thread:{id:'native'}}:{data:[turn],nextCursor:null}};
+ const history=await readSession(c,'native');
+ assert.equal(messagesFromTurns(history.turns)[0].status,'failed');
+ assert.equal(messagesFromTurns(history.turns)[0].error,'Mac locked');
+});

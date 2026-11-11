@@ -1,12 +1,23 @@
 import Foundation
 import AppKit
 import ApplicationServices
+import Carbon
 import ScreenCaptureKit
 import ImageIO
 import UniformTypeIdentifiers
 
 struct Failure: Error { let message: String }
 func fail(_ message: String) throws -> Never { throw Failure(message: message) }
+// Ask macOS only for the installed official service, never for arbitrary targets.
+func officialAutomationPermission(prompt:Bool)->[String:Any] {
+ guard let purpose=Bundle.main.object(forInfoDictionaryKey:"NSAppleEventsUsageDescription") as? String,!purpose.isEmpty else {
+  return ["state":"update_required","allowed":false]
+ }
+ let target=NSAppleEventDescriptor(bundleIdentifier:"com.openai.sky.CUAService")
+ let status=AEDeterminePermissionToAutomateTarget(target.aeDesc,0x536b4375,0x5870634e,prompt) // SkCu / XpcN bootstrap, no event sent.
+ let state=status == noErr ? "allowed" : status == -1744 ? "not_requested" : status == -1743 ? "denied" : status == -600 ? "not_running" : "error"
+ return ["state":state,"allowed":status == noErr,"osStatus":Int(status)]
+}
 func captureContent() async throws -> SCShareableContent {
  let content=try await SCShareableContent.excludingDesktopWindows(true,onScreenWindowsOnly:false)
  guard !content.displays.isEmpty else {try fail("当前没有可采集的显示器，可能已经熄屏或合盖。请唤醒显示器或启用虚拟显示器后重新连接；这不是辅助功能权限错误。")}
@@ -127,10 +138,11 @@ func humanInput(_ req:[String:Any],app:NSRunningApplication) async throws -> [St
 func run(_ req: [String:Any]) async throws -> [String:Any] {
  let method=req["method"] as? String ?? ""
  if method=="health" {
-  let screen=CGPreflightScreenCaptureAccess();var result:[String:Any] = ["accessibility":AXIsProcessTrusted(),"screenRecording":screen,"platform":"macos"]
+  let screen=CGPreflightScreenCaptureAccess();var result:[String:Any] = ["accessibility":AXIsProcessTrusted(),"screenRecording":screen,"platform":"macos","officialAutomation":officialAutomationPermission(prompt:false)]
   if screen,let content=try? await SCShareableContent.excludingDesktopWindows(true,onScreenWindowsOnly:false) {result["activeDisplays"]=content.displays.count}
   return result
  }
+ if method=="requestOfficialAutomation" { return officialAutomationPermission(prompt:true) }
  if method=="requestPermissions" {
   let options=[kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary
   let trusted=AXIsProcessTrustedWithOptions(options)

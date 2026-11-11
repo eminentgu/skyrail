@@ -55,6 +55,8 @@
   </tr>
 </table>
 
+**Desktop control.** A floating computer button opens a foldable sidebar. A computer tool call from chat opens it automatically on desktop browsers. Maximize the computer when you need the whole workspace. Connect to view, click **Take control** for mouse and keyboard, and press **Esc** to release. The controlled pointer appears inside the video. On phones, the floating button switches between chat and the touch workspace. Screen controls float above the video, and attachments and settings expand from the compact chat composer.
+
 **Web languages and weak connections.** Use the language button in the Web header to switch between English and Chinese. The single-app stream prioritizes current frames and lowers resolution and JPEG quality as delivery slows. Full desktop requests lower JPEG quality from Screen Sharing when available.
 
 **Image chat:** select a picture, paste a screenshot, or drop files into the conversation. Preview before sending and open sent images at a larger size. PNG / JPEG / WebP / GIF reach Codex as native visual input (20 MiB per image; general files remain 50 MiB). [Image help](SUPPORT.md#image-chat).

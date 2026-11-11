@@ -29,14 +29,15 @@ export class DesktopConsole extends EventEmitter{
  get connected(){return !!this.lease?.ws}
  status(){return {active:this.active,connected:this.connected,control:this.lease?.mode||'none',ready:!!this.lease?.gate?.ready,expiresAt:this.lease?.absolute||null}}
  changed(){this.emit('change')}
- async start(clientId,{replace=false}={}){
+ async start(clientId,{replace=false,mode="human"}={}){
+  if(!["view","human"].includes(mode))throw fail("无效控制模式",400);
   if(typeof clientId!=='string'||!(/^[a-zA-Z0-9-]{16,80}$/).test(clientId))throw fail('无效客户端',400);
   if(this.lease){if(!replace)throw fail('人工控制台已被打开，请先在原页面断开');this.release()}
-  const lease={clientId,mode:'human',ticket:randomBytes(32).toString('hex'),expires:this.now()+this.pendingMs,absolute:this.now()+this.maxMs};
+  const lease={clientId,mode,ticket:randomBytes(32).toString('hex'),expires:this.now()+this.pendingMs,absolute:this.now()+this.maxMs};
   this.lease=lease;this.changed();
   try{
    const status=await probeDesktop({port:this.port});if(!status.available)throw fail(status.message,503);
-   await this.beforeAcquire();
+   if(mode==='human')await this.beforeAcquire();
    if(this.lease!==lease)throw fail('控制台连接已取消');
    lease.expires=this.now()+this.pendingMs;this.changed();return {ticket:lease.ticket,expiresAt:lease.absolute};
   }catch(e){if(this.lease===lease)this.release();throw e}
@@ -76,7 +77,7 @@ export class DesktopConsole extends EventEmitter{
    // Frames and credentials are forwarded only; never decoded, captured or logged.
    ws.on('message',(_data,binary)=>{if(!binary)finish()});
    const duplex=createWebSocketStream(ws);lease.duplex=duplex;
-   const gate=new RFBInputGate();lease.gate=gate;gate.on('error',finish);gate.on('ready',()=>this.changed());tcp.on('data',chunk=>gate.observe(chunk));
+   const gate=new RFBInputGate();if(lease.mode==='view')gate.park();lease.gate=gate;gate.on('error',finish);gate.on('ready',()=>this.changed());tcp.on('data',chunk=>gate.observe(chunk));
    tcp.on('error',finish);tcp.on('close',finish);duplex.on('error',finish);ws.on('error',finish);ws.on('close',finish);
    tcp.pipe(duplex).pipe(gate).pipe(tcp);this.changed();
   })}catch{if(this.lease===lease)this.release();socket.destroy()}

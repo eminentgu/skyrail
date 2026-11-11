@@ -4,6 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { homedir } from "node:os";
 import { imageType, MAX_IMAGE } from "../../packages/codex/attachments.mjs";
 export const MAX_UPLOAD = 50 * 1024 * 1024;
 const fail = (message, status = 400) =>
@@ -148,8 +149,21 @@ export class ThreadFiles {
       throw e;
     }
   }
+  async localTarget(file, home = homedir()) {
+    if (!path.isAbsolute(file) || file.includes("\0")) throw fail("无效文件路径");
+    const visible = relative => relative && !relative.split(path.sep).some(part => part.startsWith("."));
+    for (const folder of ["Desktop", "Documents", "Downloads"]) {
+      const base = path.join(home, folder);
+      if (!inside(base, path.normalize(file)) || !visible(path.relative(base, file))) continue;
+      const [root, target] = await Promise.all([realpath(base), realpath(file)]);
+      if (inside(root, target) && visible(path.relative(root, target))) return target;
+    }
+    throw fail("本机文件链接仅支持桌面、文稿和下载中的可见文件", 403);
+  }
   async download(thread, kind, relative) {
-    const { target } = await this.resolve(thread, kind, relative);
+    const target = kind === "local"
+      ? await this.localTarget(relative)
+      : (await this.resolve(thread, kind, relative)).target;
     const handle = await open(
       target,
       constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW,

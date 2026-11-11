@@ -4,6 +4,7 @@ import { InteractiveImage } from "./InteractiveImage";
 import { RemoteDesktop } from "./RemoteDesktop";
 import { Icon } from "./Icon";
 export type Lease = {
+  captureSource?: string;
   approvalMode?: string;
   sessionId?: string | null;
   humanClientId?: string | null;
@@ -80,9 +81,18 @@ export function MacWorkspace({
   applicationTools = 0,
   onStopReady,
 }: Props) {
+  const [toolsOpen, showTools] = useState(false);
   const [view, setView] = useState(() =>
     localStorage.getItem("skyrail.scope") === "app" ? "app" : "desktop",
   );
+  const agentSession = lease.owner === "agent" && lease.threadId === selected
+    ? lease.sessionId : null;
+  useEffect(() => {
+    if (agentSession) {
+      setView("app");
+      showSettings(false);
+    }
+  }, [agentSession]);
   const desktopHandoff = useRef<() => Promise<void>>(async () => {});
   async function chooseView(next: string) {
     await action("scope", async () => {
@@ -108,8 +118,8 @@ export function MacWorkspace({
     onStopReady?.(() => desktopHandoff.current());
   }, [onStopReady]);
   useEffect(() => {
-    if (applicationTools) void chooseView("app");
-  }, [applicationTools]);
+    if (applicationTools) void chooseView(lease.captureSource === "official" ? "desktop" : "app");
+  }, [applicationTools, lease.captureSource]);
   const [apps, setApps] = useState<{ id: string; name: string }[]>([]),
     [choice, setChoice] = useState(lease.app || ""),
     [health, setHealth] = useState<{
@@ -204,6 +214,7 @@ export function MacWorkspace({
     }
   }
   async function control(owner: string) {
+    if (owner === "human" && lease.captureSource === "official") { await chooseView("desktop"); return; }
     await action("control", async () =>
       onSnapshot(
         await post("control", {
@@ -220,7 +231,12 @@ export function MacWorkspace({
       ? `/v1/mac/frame?threadId=${encodeURIComponent(selected)}&app=${encodeURIComponent(lease.app!)}&epoch=${lease.epoch}&retry=${retry}`
       : undefined;
   return (
-    <>
+    <div className={"computer-workspace" + (toolsOpen ? " tools-open" : "")}>
+      <button className="workspace-tools-orb floating-tool"
+        aria-label={ui("电脑工具")} aria-expanded={toolsOpen}
+        onClick={() => showTools(!toolsOpen)}>
+        <Icon name={toolsOpen ? "close" : "settings"} size={19} />
+      </button>
       <div
         className="computer-mode-bar"
         role="group"
@@ -269,7 +285,9 @@ export function MacWorkspace({
               <span className="stream-badge">
                 {!belongs
                   ? ui("选择应用")
-                  : live
+                  : lease.captureSource === "official"
+                    ? ui("官方观察 · 操作后更新")
+                    : live
                     ? ui("实时串流")
                     : stream?.status === "connecting"
                       ? ui("正在连接")
@@ -317,7 +335,7 @@ export function MacWorkspace({
             </div>
           </div>
 
-          {settings && (
+          {settings && (toolsOpen || !belongs) && (
             <div className="mac-setup">
               <div className="setup-heading">
                 <strong>{ui("连接本机应用")}</strong>
@@ -470,6 +488,7 @@ export function MacWorkspace({
                   onError={setError}
                   visible={workspaceVisible && view === "app"}
                   takeControl={() => void control("human")}
+                  releaseControl={() => void control("none")}
                 />
                 {(!visible || stream?.error) && (
                   <div className="stream-overlay">
@@ -594,6 +613,6 @@ export function MacWorkspace({
           )}
         </section>
       )}
-    </>
+    </div>
   );
 }

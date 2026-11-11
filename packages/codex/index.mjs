@@ -3,7 +3,7 @@ import {createInterface} from 'node:readline';
 import {EventEmitter} from 'node:events';
 export class Codex extends EventEmitter {
  pending=new Map();nextId=0;ready=false;
- constructor({launch=spawn}={}){super();this.launch=launch}
+ constructor({launch=spawn,config=[],env=process.env}={}){super();this.launch=launch;this.config=config;this.env=env}
  async connect(){
   if(this.ready)return;if(this.connecting)return this.connecting;
   const promise=this.initialize().catch(e=>{if(this.connecting===promise)this.connecting=null;throw e});this.connecting=promise;return promise;
@@ -11,7 +11,7 @@ export class Codex extends EventEmitter {
  async initialize(){
   const child=this.launch(process.env.CODEX_BIN||'codex',['app-server','--listen','stdio://','--disable','computer_use',
    '-c','mcp_servers.computer-use.enabled=false','-c','mcp_servers.node_repl.enabled=false',
-   '-c','plugins."computer-use@openai-bundled".enabled=false','-c','plugins."unified-computer-use@openai-bundled".enabled=false'],{stdio:['pipe','pipe','pipe']});
+   '-c','plugins."computer-use@openai-bundled".enabled=false','-c','plugins."unified-computer-use@openai-bundled".enabled=false',...this.config.flatMap(value=>['-c',value])],{stdio:['pipe','pipe','pipe'],env:this.env});
   this.child=child;const live=()=>this.child===child;
   child.stderr.on('data',()=>{});child.stdin.on('error',e=>this.fail(e,child));
   child.on('error',e=>this.fail(e,child));child.on('exit',()=>this.fail(Error('Codex 进程已退出，正在等待重新连接'),child));

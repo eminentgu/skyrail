@@ -1,9 +1,11 @@
 import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { useDesktopCapture } from "./useDesktopCapture";
 import { RemoteSurface } from "./RemoteSurface";
 import type { SurfaceInput } from "./surface-gestures.mjs";
 import { useWindowFrames } from "./useWindowFrames";
+import { StreamStatus } from "./StreamStatus";
 import { Icon } from "./Icon";
 type Props = {
   src?: string;
@@ -15,6 +17,7 @@ type Props = {
   post: (path: string, data?: object) => Promise<any>;
   onError: (message: string) => void;
   takeControl?: () => void;
+  releaseControl?: () => void;
   visible?: boolean;
   onRetry?: () => void;
 };
@@ -28,6 +31,7 @@ export function InteractiveImage({
   post,
   onError,
   takeControl,
+  releaseControl,
   visible = true,
   onRetry,
 }: Props) {
@@ -38,7 +42,15 @@ export function InteractiveImage({
     composing = useRef(false),
     zoom = useRef<() => void>(() => {});
   const video = useWindowFrames(src, image);
-  const enabled = controlEnabled && video.ready && !video.waiting;
+  const granted = controlEnabled && visible && video.ready && !video.waiting;
+  const capture = useDesktopCapture({
+    enabled: granted,
+    focus: () => keyboard.current?.focus({ preventScroll: true }),
+    ownsFocus: target => target === keyboard.current,
+    releaseInput: () => release(),
+    exit: () => releaseControl?.(),
+  });
+  const enabled = granted && (!capture.desktop || capture.captured);
   const latest = useRef({ enabled, epoch, threadId });
   latest.current = { enabled, epoch, threadId };
   const [focused, setFocused] = useState(false),
@@ -118,7 +130,7 @@ export function InteractiveImage({
   };
   const key = (code: string) => send({ kind: "key", code });
   return (
-    <div className="interactive-image app-interactive">
+    <div className={"interactive-image app-interactive" + (focused ? " keyboard-expanded" : "") + (capture.desktop && enabled ? " remote-captured" : "")}>
       <RemoteSurface
         enabled={enabled}
         visible={visible}
@@ -141,33 +153,31 @@ export function InteractiveImage({
           draggable={false}
         />
       </RemoteSurface>
-      <span className="frame-health" role="status">
-        {video.paused
-          ? ui("画面已暂停")
-          : video.waiting
-            ? ui("正在恢复画面…")
-            : !video.ready
-              ? ui("等待画面…")
-              : video.level === 0
-                ? ui("省流画质")
-                : video.level === 2
-                  ? ui("高清画质")
-                  : ui("自适应画质")}
-        {video.waiting && (
-          <button type="button" onClick={onRetry}>
-            {ui("重新连接")}
-          </button>
-        )}
-      </span>
+      <StreamStatus
+        label={video.paused ? ui("画面已暂停")
+          : video.waiting ? ui("正在恢复画面…")
+          : !video.ready ? ui("等待画面…")
+          : video.level === 0 ? ui("省流画质")
+          : video.level === 2 ? ui("高清画质") : ui("自适应画质")}
+        warning={video.waiting || video.paused}
+        retry={video.waiting ? onRetry : undefined}
+      />
       <div className="app-touch-controls">
-        <span>{enabled ? ui("滑动移光标 · 轻点点击") : ui("只看画面")}</span>
+        <span>{capture.desktop
+          ? enabled ? ui("鼠标和键盘已接管 · Esc 退出") : ui("只看画面")
+          : enabled ? ui("滑动移光标 · 轻点点击") : ui("只看画面")}</span>
         <button aria-label={ui("缩放应用画面")} onClick={() => zoom.current()}>
           <Icon name="expand" size={17} />
         </button>
         {!enabled ? (
-          <button className="primary" onClick={takeControl}>
-            {ui("接手操作")}
+          <button className="primary" onClick={() => {
+            capture.capture();
+            if (!granted) takeControl?.();
+          }}>
+            {capture.desktop ? ui("接管鼠标和键盘") : ui("接手操作")}
           </button>
+        ) : capture.desktop ? (
+          <button onClick={releaseControl}>{ui("退出接管")} <kbd>Esc</kbd></button>
         ) : (
           <button
             className="primary"

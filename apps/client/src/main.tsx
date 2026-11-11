@@ -3,6 +3,7 @@ import { getLanguage, setLanguage, t as ui } from "./i18n";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
+import { StreamStatus } from "./StreamStatus";
 import { Picture, isPicture } from "./Attachments";
 import { useComposerUploads } from "./useComposerUploads";
 import { SessionConnection } from "./SessionConnection";
@@ -34,7 +35,7 @@ type Thread = {
 };
 type State = {
   permissions?: { fullAccess: boolean };
-  desktop?: { active: boolean };
+  desktop?: { active: boolean; connected?: boolean };
   threads: Thread[];
   deletedThreads?: { id: string; title: string; deletedAt: string }[];
   runtime: string;
@@ -66,8 +67,9 @@ function App() {
     [text, setText] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [panel, open] = useState(
-      () => localStorage.getItem("skyrail.page") === "computer",
+    [panel, setPanel] = useState(
+      () => !matchMedia("(min-width:700px) and (pointer:fine)").matches &&
+        localStorage.getItem("skyrail.page") === "computer",
     ),
     [history, showHistory] = useState(false),
     [full, setFull] = useState(false),
@@ -79,6 +81,24 @@ function App() {
     [copied, setCopied] = useState(false);
   const [filesOpen, showFiles] = useState(false),
     [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [desktopLayout, setDesktopLayout] = useState(() =>
+    matchMedia("(min-width:700px) and (pointer:fine)").matches);
+  const [composerExpanded, expandComposer] = useState(false);
+  const hasComputer = (!!state.lease.app && state.lease.threadId === selected) ||
+    !!state.desktop?.connected;
+  function open(value: boolean) {
+    setPanel(value);
+    if (!value) setFull(false);
+  }
+  useEffect(() => {
+    const media = matchMedia("(min-width:700px) and (pointer:fine)");
+    const change = () => {
+      setDesktopLayout(media.matches);
+      setFull(false);
+    };
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, []);
   const selectedRef = React.useRef(selected);
   selectedRef.current = selected;
   useEffect(() => {
@@ -116,7 +136,7 @@ function App() {
     const field = composerRef.current;
     if (field) {
       field.style.height = "auto";
-      field.style.height = Math.min(160, field.scrollHeight) + "px";
+      field.style.height = text ? Math.min(140, Math.max(44, field.scrollHeight)) + "px" : "44px";
     }
   }, [text, panel]);
   const thread = state.threads.find((t) => t.id === selected);
@@ -309,10 +329,21 @@ function App() {
   React.useLayoutEffect(() => {
     const el = messagesRef.current;
     if (el && follows.current) el.scrollTop = el.scrollHeight;
-  }, [messages.map((m) => m.text).join(""), selected]);
+  }, [messages.map((m) => m.text).join(""), selected, panel]);
   useEffect(() => {
     localStorage.setItem("skyrail.page", panel ? "computer" : "chat");
   }, [panel]);
+  const appSession = state.lease.owner === "agent" && state.lease.threadId === selected
+    ? state.lease.sessionId : null;
+  useEffect(() => {
+    if (appSession && desktopLayout) setPanel(true);
+  }, [appSession, desktopLayout]);
+  const computerActivity = messages.filter(message =>
+    message.role === "tool" && message.action &&
+      ["running", "waiting_approval"].includes(message.status || "")).at(-1)?.id;
+  useEffect(() => {
+    if (computerActivity && desktopLayout) setPanel(true);
+  }, [computerActivity, desktopLayout]);
   async function post(path: string, data: object = {}, signal?: AbortSignal) {
     const r = await fetch("/v1/" + path, {
       method: "POST",
@@ -345,7 +376,7 @@ function App() {
       !token ||
       state.runtime !== "connected" ||
       network !== "online" ||
-      panel
+      (panel && !matchMedia("(min-width:1100px)").matches)
     )
       return;
     let disposed = false;
@@ -509,22 +540,6 @@ function App() {
             Skyrail<small>{ui("你的 Mac 工作台")}</small>
           </span>
         </a>
-        <nav className="desktop-switch" aria-label={ui("工作区")}>
-          <button
-            aria-pressed={!panel}
-            onClick={() => {
-              open(false);
-              setFull(false);
-            }}
-          >
-            <Icon name="chat" size={18} />
-            {ui("对话")}
-          </button>
-          <button aria-pressed={panel} onClick={() => open(true)}>
-            <Icon name="monitor" size={18} />
-            {ui("电脑")}
-          </button>
-        </nav>
         <div className="header-actions">
           <button
             className="language-toggle"
@@ -549,15 +564,9 @@ function App() {
         </div>
       </header>
       {(network === "offline" || network === "recovering") && (
-        <div className="network-notice" role="status">
-          <span>
-            {network === "offline" ? ui("网络已断开") : ui("正在恢复连接…")}
-          </span>
-          {network === "recovering" && (
-            <button onClick={() => reconnect.current()}>
-              {ui("重新连接")}
-            </button>
-          )}
+        <div className="network-status">
+          <StreamStatus label={network === "offline" ? ui("网络已断开") : ui("正在恢复连接…")}
+            warning retry={network === "recovering" ? () => reconnect.current() : undefined} />
         </div>
       )}
       {panel && error && (
@@ -972,11 +981,8 @@ function App() {
                 rows={1}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={
-                  state.desktop?.active
-                    ? ui("发送任务时交给 Codex，桌面保持连接")
-                    : ui("说说你想做什么…")
-                }
+                placeholder={ui("给 Codex 发消息…")}
+                aria-describedby={state.desktop?.active ? "composer-handoff-hint" : undefined}
                 aria-label={ui("消息")}
                 onKeyDown={(e) => {
                   if (
@@ -990,7 +996,18 @@ function App() {
                   }
                 }}
               />
-              <div className="composer-tools">
+              {state.desktop?.active && (
+                <small id="composer-handoff-hint"
+                  className={"composer-handoff-hint" + (!composerExpanded ? " is-collapsed" : "")}>
+                  {ui("发送后交给 Codex，电脑画面保持连接。")}
+                </small>
+              )}
+              <div className={"composer-tools" + (composerExpanded ? " is-expanded" : "")}>
+                <button className="composer-more" type="button"
+                  aria-label={ui("附件与设置")} aria-expanded={composerExpanded}
+                  onClick={() => expandComposer(!composerExpanded)}>
+                  <Icon name={composerExpanded ? "close" : "plus"} size={20} />
+                </button>
                 <button
                   className="composer-images"
                   type="button"
@@ -1042,6 +1059,7 @@ function App() {
                   <button
                     type="button"
                     className="stop-button"
+                    aria-label={ui("停止")}
                     onClick={() =>
                       act(async () => {
                         await post(`threads/${selected}/stop`);
@@ -1067,13 +1085,10 @@ function App() {
                       (!text.trim() && !attachments.length) ||
                       state.runtime !== "connected"
                     }
-                    aria-label={ui("发送消息")}
+                    aria-label={state.desktop?.active ? ui("交给 Codex") : ui("发送消息")}
+                    title={state.desktop?.active ? ui("发送后交给 Codex，电脑画面保持连接。") : ui("发送消息")}
                   >
-                    {state.desktop?.active ? (
-                      ui("交给 Codex")
-                    ) : (
-                      <Icon name="arrow" size={21} />
-                    )}
+                    <Icon name="arrow" size={21} />
                   </button>
                 )}
               </div>
@@ -1084,7 +1099,17 @@ function App() {
             </p>
           </div>
         </section>
-        <div className={"desk-host " + (!panel ? "is-hidden" : "")}>
+        <aside className={"computer-dock " + (!panel ? "is-hidden" : "")} aria-label={ui("电脑侧栏")}>
+          <div className="computer-dock-actions">
+            <button className="floating-tool" onClick={() => setFull(!full)}
+              aria-label={full ? ui("恢复侧栏") : ui("最大化电脑")}>
+              <Icon name="expand" size={18} />
+            </button>
+            <button className="floating-tool" onClick={() => open(false)} aria-label={ui("收起电脑")}>
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+          <div className="desk-host">
           {token ? (
             <MacWorkspace
               running={running}
@@ -1114,7 +1139,8 @@ function App() {
               {ui("正在连接你的 Mac…")}
             </div>
           )}
-        </div>
+          </div>
+        </aside>
       </main>
       {filesOpen && (
         <FilesPanel
@@ -1132,32 +1158,14 @@ function App() {
           }}
         />
       )}
-      <nav className="mobile-nav" aria-label={ui("手机导航")}>
-        <button
-          aria-current={!panel ? "page" : undefined}
-          onClick={() => {
-            showHistory(false);
-            open(false);
-            setFull(false);
-          }}
-        >
-          <span>
-            <Icon name="chat" />
-            {approvalCount > 0 && <i>{approvalCount}</i>}
-          </span>
-          {ui("对话")}
-        </button>
-        <button
-          aria-current={panel ? "page" : undefined}
-          onClick={() => {
-            showHistory(false);
-            open(true);
-          }}
-        >
-          <Icon name="monitor" />
-          {ui("电脑")}
-        </button>
-      </nav>
+      <button className={"computer-orb " + (panel ? "is-open" : "") + (hasComputer ? " is-connected" : "")}
+        aria-label={panel ? ui("返回对话") : ui("打开电脑")}
+        aria-expanded={panel}
+        onClick={() => { showHistory(false); open(!panel); }}>
+        <Icon name={panel ? "chat" : "monitor"} size={22} />
+        {hasComputer && <span className="orb-connected" aria-hidden="true" />}
+        {!!approvalCount && <span className="orb-count">{approvalCount}</span>}
+      </button>
     </div>
   );
 }

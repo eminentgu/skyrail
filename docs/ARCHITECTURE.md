@@ -8,11 +8,17 @@ RFB 连接与输入所有权分离。交给 Codex 时保持同一个经过认证
 
 生产页面固定到服务启动时的构建快照，防止构建覆盖或热更新产生前后端版本混用。原生 Codex 会话元数据增加项目描述，Git 根目录与 common-dir 用于将 worktree 归入原仓库；非 Git 目录保留实际 cwd。
 
+## Foldable computer sidebar and desktop capture (2026-11-11)
+
+The computer workspace remains mounted inside a foldable sidebar. Desktop chat computer tool activity opens that sidebar, and the floating computer button folds or reopens it without replacing the RFB transport. Maximize temporarily gives the computer the whole workspace. Phones use the same floating button to switch to a full touch workspace. Shared-scope options and connection tools expand above the video, while the chat composer reveals attachments and settings on demand. The local pointer marker follows normalized control coordinates for mouse and touch, is clipped to the viewer, and disappears when control is revoked.
+
+The desktop viewer starts with mode=view. Authentication and frame requests pass through the server gate while input stays blocked. Take control runs the existing ownership handoff before opening the input gate. The browser keeps keyboard focus on the remote target, releases held keys and pointer buttons before handoff, and uses Escape or leaving browser fullscreen to release capture. A failed release request or stream recovery never silently re-arms capture after Escape. On touch devices the browser leaves keyboard activation to the explicit input button.
+
 ## 当前人工控制路径
 
 2026-11-01：人工控制优先使用系统屏幕共享，浏览器 noVNC → 已认证的固定路径 WebSocket → loopback TCP 5900。该通道展示整个 Mac，不绑定某个应用窗口，因此新应用 / 弹窗无需另选窗口。人工图像与输入不进入模型或聊天存储，系统密码由用户本人输入。
 
-开始人工控制前撤销模型窗口连接与审批，通道独占且有期限。浏览 Codex 对话不会卸载桌面组件；发送任务先将人工连接切为只看画面，保留串流，再允许模型申请应用控制。模型的 `skyrail_computer` 仍使用独立的所选应用 / AX 通道，不能把人工 VNC 控制能力当作模型已有权限。旧窗口人工点击曾返回成功但应用没有响应，不再作为人工主路径。
+开始人工控制前撤销模型窗口连接与审批，通道独占且有期限。浏览 Codex 对话不会卸载桌面组件；发送任务先将人工连接切为只看画面，保留串流，再允许模型申请应用控制。模型的 `skyrail_computer` 使用独立的所选应用通道（official 后端转发给官方 MCP，legacy 后端使用 AX），不能把人工 VNC 控制能力当作模型已有权限。旧窗口人工点击曾返回成功但应用没有响应，不再作为人工主路径。
 
 常驻服务从 `dist/` 提供静态构建，无开发热更新注入；`npm run dev` 保留 Vite。HTML 不缓存、哈希资产缓存，静态服务拒绝越界路径和指向构建目录外的符号链接。网关仍只向登录用户转发 API 与专用 WebSocket。
 
@@ -23,11 +29,9 @@ React UI → 本地同源 HTTP/SSE 协调器 → Codex app-server stdio。Codex 
 
 控制权状态与 UI 分开。交接先将 owner 改为 none、递增 epoch，再等待已派发操作完成。排队操作在执行边界重验 epoch / thread。交还先观察再授予 agent；输入索引还需符合 agent 最近观察版本。原生调用超时后杀死辅助进程并撤销控制，结果标为未知，不自动重试。
 
-## 为什么没有直接调用 Codex 桌面私有组件
+## 官方执行与 Skyrail 适配器的边界
 
-本机发现 @oai/sky 0.7.13 及 Computer Use 插件 1.0.1001641。插件声明 Proprietary，应用策略、授权 elicitation 与服务启动由桌面宿主管理。app-server 的正常握手不会自动取得这套桌面授权。未仿造 trusted nodeRepl、宿主元数据或私有服务身份，也没有复制/分发其二进制。
-
-因此复用 Codex 任务运行时与动态工具协议；原生 Mac 操作部分自行用系统公开 API 实现。内置 Computer Use 与自建适配器之间保留架构区分，未来仅在提供公开支持的宿主接入方式时再替换。
+官方模式调用用户已安装的 Computer Use MCP，经真实签名的 Codex CLI 启动；应用确认通过标准 MCP elicitation 响应，并沿用 Skyrail 当前操作的授权。不会仿造 trusted nodeRepl、桌面宿主元数据、私有服务身份或修改官方许可记录，也不复制分发专有二进制。legacy 模式仍保留公开系统 API 的 AX / ScreenCaptureKit 适配器，供独立采集和旧客户端使用。
 
 ## 数据与局限
 
@@ -95,3 +99,37 @@ Authenticated POST `threads/:id/connection` inspects the native writer lock. `re
 Authenticated `GET /v1/files/preview` uses the same conversation roots, path confinement and regular-file checks as downloads, returns only recognized raster content types with nosniff and sandbox CSP, and streams from offset zero after signature inspection. SVG, HTML, arbitrary external image URLs and arbitrary absolute paths are not rendered. Markdown project-image outputs use this same endpoint.
 
 The composer adds image selection, clipboard-file paste and file drop with sequential uploads, progress, cancellation and disabled send while uploading. Switching conversations invalidates the upload generation. Thumbnails and the modal preview work within existing desktop / mobile layout; original downloads remain available. Imported native-only image history without Skyrail attachment metadata still displays an image marker rather than exposing arbitrary native file paths.
+
+## Official Codex Computer Use backend
+
+Set `SKYRAIL_COMPUTER_BACKEND=official`, or private `.data/computer-backend.json` to `{"backend":"official"}`, then restart. The alternative `skyrail` backend retains the legacy Mac adapter. Codex tasks and durable thread identity stay native in both modes. The official backend uses the user's installed official client; Skyrail does not distribute its proprietary binaries or impersonate the desktop host.
+
+### Startup and separate permission layers
+
+`OfficialComputerClient` starts the installed MCP helper through the app-bundled signed Codex CLI, using its public sandbox command with the dedicated GUI helper's explicit `:danger-full-access` profile and managed configuration included. This preserves the unrestricted OS-process scope the helper had when launched directly; model shell commands retain their own configured permission profile. Omitting the explicit helper profile blocks AppKit under the CLI's workspace default. Direct Node launching failed sender authentication on the acceptance machine; using the real signed CLI fixed it without modifying code signatures, audit identities, trusted metadata or TCC records.
+
+The CLI is discovered in ChatGPT.app or the older Codex.app layout. `SKYRAIL_OFFICIAL_COMPUTER_LAUNCHER` and `SKYRAIL_OFFICIAL_COMPUTER_CLIENT` can select installed paths. Spawn uses argument arrays, not a shell. The launcher and its helper have an owned process group; close/timeout terminates that group. A real lifecycle test found no remaining owned child processes after shutdown.
+
+MCP transport, actual tool acceptance, macOS Automation, and Skyrail helper AX / capture grants are reported independently. `authentication: accepted` requires a successful real official call, not only initialize/tools-list. Official operation does not depend on the old Skyrail capture helper's privacy flags. The system Automation button requests the installed official service only and is disabled once allowed. Re-signing the separate ad-hoc Mac wrapper may require renewed system grants; service-only updates do not re-sign it.
+
+### Official application confirmation
+
+The client implements MCP `elicitation/create` for the observed official application-confirmation format: an empty object form while exactly one approved `get_app_state(app)` call is pending. Acceptance is tied to that pending operation and a fresh thread/epoch/ownership check. The application was already approved by Skyrail's application card or its user-selected full-access mode. The response accepts only this operation and never echoes the server's `persist:[always]` metadata. Unknown forms, URL requests, missing authorization context and revoked leases are declined. Other server requests return method-not-found. This fixes the earlier open-app failure caused by treating every server-initiated request as unsupported.
+
+### Input ownership and independent media
+
+Official observation, click, text, keys, value, scroll and drag run behind Skyrail's shared thread/epoch/selected-app gate and serialized queue. Writes need a fresh official observation. Element identifiers remain strings and input always targets the bound application. Human takeover revokes ownership first and waits for an already-dispatched operation. Queued input and late observations are rejected. Concurrent opens and revocation during binding cannot leave stale agent ownership enabled. A failed input is never replayed through another driver.
+
+Official app binding stores the official observation directly, without capturing a legacy AX tree. App images update after official actions through an authenticated thread/app/epoch-scoped endpoint; they are labeled observations, not video. Whole-desktop Screen Sharing remains the live viewer and human input channel. Human app-image controls direct the user to whole-desktop takeover rather than injecting input through the old adapter. Returning control requires a new observation or app binding; it does not require disconnecting the desktop viewer.
+
+### Acceptance evidence (2026-11-11)
+
+Real chat submissions, native Codex turns and the registered Skyrail MCP tool completed official Calculator open, observation and button clicks for `2+3=5`. A separate turn used official key events for `7×8`, then read `56` from a fresh observation; the saved official image was also inspected. After the human-handoff API revoked the native lease, an old control request returned 409. A subsequent real model turn reconnected and observed the unchanged `7×8=56`. The RFB video/mouse channel was not driven by that API test; protocol simulations and earlier user reports are separate evidence.
+
+![Official Calculator observation after native keyboard input](assets/official-computer-use-calculator.png)
+
+`SKYRAIL_DATA_DIR` isolates thread state, workspaces, uploads, settings and client-build snapshots for tests on a separate loopback port. It does not create a separate macOS authorization identity. Acceptance tests must not run concurrently with a person's physical or remote input.
+
+## Whole-desktop pacing
+
+Whole-desktop video now prefers JPEG-capable encodings before lossless codecs and does not advertise continuous updates. The pinned noVNC adapter suppresses its immediate next-frame request, then schedules one incremental update after 50/100/200 ms. A frame taking over 250 ms selects JPEG quality 0, compression 9 and the 200 ms interval. Recovery requires sustained fast frames. Folding the viewer or hiding the browser tab stops new update requests while preserving the authenticated connection. This controls demand without dropping bytes from the stateful RFB stream. The remote server chooses the actual encoding; physical desktop resolution is unchanged. Protocol simulations verify pacing and gate behavior. They do not establish measured bandwidth reduction against Apple's Screen Sharing encoder.
