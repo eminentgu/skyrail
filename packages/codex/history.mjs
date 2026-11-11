@@ -1,6 +1,13 @@
 import {createHash} from 'node:crypto';
 const labels={status:'检查电脑连接',list_apps:'查看 Mac 应用',open_app:'打开应用',observe:'观察窗口',press:'点击控件',setValue:'填写内容',key:'按键操作'};
-const completedStatus=(item)=>item.success===false||['failed','declined'].includes(item.status)?'failed':['inProgress','in_progress'].includes(item.status)?'running':'completed';
+const completedStatus=(item)=>item.success===false||item.result?.isError===true||['failed','declined'].includes(item.status)?'failed':['inProgress','in_progress'].includes(item.status)?'running':'completed';
+function mcpFailure(item) {
+ const message = item.error?.message ||
+  (item.status === 'failed' || item.result?.isError === true
+   ? item.result?.content?.find(content => content.type === 'text')?.text
+   : undefined);
+ return typeof message === 'string' ? message.slice(0,2000) : undefined;
+}
 export function messagesFromTurns(turns){
  const messages=[];
  for(const turn of turns){
@@ -18,7 +25,7 @@ export function messagesFromTurns(turns){
     const error=failed?(item.contentItems||[]).find(c=>c.type==='inputText')?.text:undefined;
     messages.push({...base,id:'tool:'+item.id,role:'tool',action:args.action,app:args.app,text:labels[args.action]||item.tool||'工具调用',status:completedStatus(item),error:error?.slice(0,2000)});
    }else if(['mcpToolCall','commandExecution','fileChange','webSearch'].includes(item.type)){
-    messages.push({...base,id:'tool:'+item.id,role:'tool',text:item.type==='mcpToolCall'?`${item.server||''} / ${item.tool||'工具'}`:item.type==='commandExecution'?'运行命令':item.type==='fileChange'?'修改文件':'搜索网页',status:completedStatus(item),error:item.error?.message});
+    messages.push({...base,id:'tool:'+item.id,role:'tool',text:item.type==='mcpToolCall'?`${item.server||''} / ${item.tool||'工具'}`:item.type==='commandExecution'?'运行命令':item.type==='fileChange'?'修改文件':'搜索网页',status:completedStatus(item),error:item.type==='mcpToolCall'?mcpFailure(item):item.error?.message});
    }
   }
  }
@@ -47,7 +54,8 @@ function compactTurn(turn){
   const {id,type,text,clientId,tool,server,status,success,arguments:args,error}=item;
   const content=item.content?.filter(c=>['text','image','localImage'].includes(c.type)).map(c=>c.type==='text'?{type:c.type,text:c.text}:{type:c.type});
   const contentItems=success===false?item.contentItems?.filter(c=>c.type==='inputText').slice(0,1):undefined;
-  return {id,type,text,clientId,tool,server,status,success,arguments:args,error,content,contentItems};
+  const failure=type==='mcpToolCall'?mcpFailure(item):undefined;
+  return {id,type,text,clientId,tool,server,status,success:success??(item.result?.isError===true?false:undefined),arguments:args,error:failure?{message:failure}:error,content,contentItems};
  })};
 }
 export function applySession(thread,native,{previousMessages=[]}={}){

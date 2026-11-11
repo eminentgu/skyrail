@@ -92,3 +92,11 @@ These scripts use model quota and may create native session records. Do not run 
 ---
 
 [Documentation hub](README.md) · [Next: remote access →](REMOTE-ACCESS.md)
+
+## Official Codex Computer Use backend
+
+Install Computer Use using the official desktop application's setup first. Skyrail uses that installation rather than distributing its proprietary helper. Select `{"backend":"official"}` in the private `.data/computer-backend.json` and restart Skyrail. The official app-bundled signed Codex CLI launches the helper; an explicit GUI-helper permission profile preserves the required AppKit access, while managed requirements and Skyrail's application/control gates still apply. This does not change the model's command permission setting.
+
+In Skyrail permission settings, request Automation access once if macOS requires it, then check the official operation connection. Transport connected alone is not success: `authentication: accepted` means an actual official call succeeded. No repeated Automation request is needed when macOS already returns allowed. Skyrail's own AX / capture grants belong to its separate capture adapter; official agent observations do not require them. Whole-desktop human viewing/control uses Screen Sharing. Official app images update after actions; use the desktop viewer for live video and takeover. Unlock a locked Mac yourself in that viewer before resuming agent actions. Never enter the password in chat.
+
+Official app confirmation is handled inside the already-authorized Skyrail app operation. It grants no persistent always-allow policy. Unsupported form requests are declined rather than answered with invented values. See the [native acceptance record](ARCHITECTURE.md#acceptance-evidence-2026-11-11).

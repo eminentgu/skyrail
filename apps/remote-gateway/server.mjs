@@ -25,6 +25,7 @@ const server=http.createServer(async(req,res)=>{
   res.writeHead(303, {Location:'/'});
   return res.end();
  }
+ if(req.url.split('?')[0]==='/v1/internal/computer-mcp'){res.writeHead(404);return res.end()}
  if(req.url==='/_health'){res.writeHead(200,{'Content-Type':'application/json'});return res.end('{"status":"ready"}')}
  if(req.headers.origin&&req.headers.origin!==`https://${publicHost}`&&req.headers.origin!==`http://127.0.0.1:${port}`){res.writeHead(403);return res.end('Invalid origin')}
  if(req.url==='/_access/login'&&req.method==='POST'){

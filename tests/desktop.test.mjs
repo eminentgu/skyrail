@@ -59,3 +59,22 @@ test('handing control to Codex keeps the desktop connected and resume reacquires
 test('explicit device switch replaces the old connection without accepting its old ticket',async t=>{
  const f=await fixture(t);const old=await f.desktop.start(clientId),ws=f.open(old.ticket);await once(ws,'open');const closed=once(ws,'close');const next=await f.desktop.start('new-client-123456789',{replace:true});await closed;assert.notEqual(next.ticket,old.ticket);assert.throws(()=>f.desktop.stop(clientId,old.ticket),/过期/);assert.equal(f.desktop.active,true);
 });
+
+test('a desktop preview starts behind the input gate and acquires control only when requested',async t=>{
+ const f=await fixture(t);
+ const lease=await f.desktop.start(clientId,{mode:'view'});
+ assert.equal(f.acquired,0);
+ assert.equal(f.desktop.active,false);
+ const ws=f.open(lease.ticket);
+ await once(ws,'open');
+ assert.equal(f.desktop.lease.gate.enabled,false);
+ await assert.rejects(f.desktop.start(clientId,{mode:'invalid',replace:true}),/无效控制模式/);
+ assert.equal(f.desktop.verify(clientId,lease.ticket).mode,'view');
+ f.desktop.lease.gate.ready=true;
+ await f.desktop.control(clientId,lease.ticket,'human');
+ assert.equal(f.acquired,1);
+ assert.equal(f.desktop.lease.gate.enabled,true);
+ await f.desktop.control(clientId,lease.ticket,'view');
+ assert.equal(f.desktop.lease.gate.enabled,false);
+ assert.equal(f.desktop.connected,true);
+});

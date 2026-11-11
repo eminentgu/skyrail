@@ -38,7 +38,7 @@ export function RemoteSurface({
   latest.current = { enabled, visible, frame, send, onCancel };
   const view = useRef({ scale: 1, x: 0, y: 0 }),
     [zoom, setZoom] = useState(1),
-    [touch, setTouch] = useState(false);
+    [pointerVisible, showPointer] = useState(false);
   const gesture = useRef<SurfaceGestures | null>(null);
   const paint = (p: Point) => {
     const r = latest.current.frame(),
@@ -151,7 +151,7 @@ export function RemoteSurface({
     const el = root.current;
     if (!el) return;
     const wheel = (e: WheelEvent) => {
-      if (!visible) return;
+      if (!visible || (!enabled && !e.ctrlKey)) return;
       e.preventDefault();
       if (e.ctrlKey) {
         transform(Math.exp(-e.deltaY * 0.005), 0, 0, e.clientX, e.clientY);
@@ -177,6 +177,7 @@ export function RemoteSurface({
       className="remote-gesture-surface"
       data-zoom={zoom.toFixed(2)}
       data-input-mode={mode}
+      data-controlling={enabled ? "true" : "false"}
     >
       <div className="remote-gesture-content" ref={layer}>
         {children}
@@ -186,10 +187,10 @@ export function RemoteSurface({
         aria-label={ui("远程画面操作区域")}
         onContextMenu={(e) => e.preventDefault()}
         onPointerDown={(e) => {
-          if (!visible) return;
+          if (!visible || (!enabled && e.pointerType !== "touch")) return;
           e.preventDefault();
           if (e.pointerType !== "touch") onFocus?.();
-          if (e.pointerType === "touch") setTouch(true);
+          showPointer(true);
           e.currentTarget.setPointerCapture(e.pointerId);
           gesture.current!.down(
             e.pointerId,
@@ -200,7 +201,13 @@ export function RemoteSurface({
           );
           paint(gesture.current!.position);
         }}
+        onPointerEnter={() => showPointer(true)}
+        onPointerLeave={(e) => {
+          if (e.pointerType !== "touch" && !gesture.current?.held) showPointer(false);
+        }}
         onPointerMove={(e) => {
+          if (!visible || (!enabled && e.pointerType !== "touch")) return;
+          showPointer(true);
           if (e.pointerType !== "touch" && !gesture.current!.has(e.pointerId))
             gesture.current!.hover(e.clientX, e.clientY);
           else gesture.current!.move(e.pointerId, e.clientX, e.clientY);
@@ -218,7 +225,7 @@ export function RemoteSurface({
       <span
         ref={marker}
         className="remote-pointer"
-        hidden={!touch || !enabled || !visible}
+        hidden={!pointerVisible || !enabled || !visible}
         aria-hidden="true"
       >
         <svg width="22" height="28" viewBox="0 0 22 28">

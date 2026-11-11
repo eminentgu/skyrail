@@ -134,6 +134,63 @@ function ApprovalCard({
     </div>
   );
 }
+function ToolEvent({
+  message: m, approval, decide,
+}: {
+  message: ChatMessage;
+  approval?: ChatApproval;
+  decide: (id: string, allow: boolean, allowAll?: boolean) => Promise<void>;
+}) {
+  return (
+    <div className={"tool-event " + m.status}>
+      <div className="tool-event-line">
+        <span aria-hidden>
+          {m.status === "completed"
+            ? "✓"
+            : m.status === "failed"
+              ? "!"
+              : m.status === "waiting_approval"
+                ? "◈"
+                : "◌"}
+        </span>
+        <strong>{ui(m.text)}</strong>
+        <span>
+          {m.status === "waiting_approval"
+            ? ui("等待确认")
+            : m.status === "completed"
+              ? ui("已完成")
+              : m.status === "failed"
+                ? ui("未完成")
+                : ui("进行中")}
+        </span>
+      </div>
+      {approval && <ApprovalCard approval={approval} decide={decide} />}
+      <details>
+        <summary>{ui("查看详情")}</summary>
+        <p>
+          {m.app || ui("本机 Mac")}
+          {m.error ? " · " + m.error : ""}
+        </p>
+      </details>
+    </div>
+  );
+}
+
+function conversationRows(messages: ChatMessage[], approvals: ChatApproval[]) {
+  const rows: (ChatMessage | ChatMessage[])[] = [];
+  for (const message of groupMessages(messages)) {
+    const needsAttention = message.error || message.status === "failed" ||
+      message.status === "waiting_approval" ||
+      approvals.some(approval => "tool:" + approval.id === message.id);
+    if (message.role === "tool" && !needsAttention) {
+      const previous = rows.at(-1);
+      if (Array.isArray(previous)) previous.push(message);
+      else rows.push([message]);
+    } else rows.push(message);
+  }
+  return rows;
+}
+
 export function Conversation({
   threadId,
   cwd,
@@ -149,7 +206,25 @@ export function Conversation({
 }) {
   return (
     <>
-      {groupMessages(messages).map((m) => {
+      {conversationRows(messages, approvals).map((m) => {
+        if (Array.isArray(m)) {
+          const running = m.some(operation => operation.status === "running");
+          const completed = m.every(operation => operation.status === "completed");
+          return (
+            <details className="operation-group" key={m[0].id}>
+              <summary>
+                <Icon name="chevron" size={15} />
+                <span>{ui("AI 操作 · {0} 项", m.length)}</span>
+                <small>{running ? ui("进行中") : completed ? ui("已完成") : ui("查看详情")}</small>
+              </summary>
+              <div className="operation-group-content">
+                {m.map(operation => (
+                  <ToolEvent key={operation.id} message={operation} decide={decide} />
+                ))}
+              </div>
+            </details>
+          );
+        }
         const approval = approvals.find((a) => "tool:" + a.id === m.id);
         const time = m.createdAt
           ? new Date(m.createdAt).toLocaleTimeString(getLanguage(), {
@@ -158,39 +233,7 @@ export function Conversation({
             })
           : "";
         if (m.role === "tool")
-          return (
-            <div className={"tool-event " + m.status} key={m.id}>
-              <div className="tool-event-line">
-                <span aria-hidden>
-                  {m.status === "completed"
-                    ? "✓"
-                    : m.status === "failed"
-                      ? "!"
-                      : m.status === "waiting_approval"
-                        ? "◈"
-                        : "◌"}
-                </span>
-                <strong>{ui(m.text)}</strong>
-                <span>
-                  {m.status === "waiting_approval"
-                    ? ui("等待确认")
-                    : m.status === "completed"
-                      ? ui("已完成")
-                      : m.status === "failed"
-                        ? ui("未完成")
-                        : ui("进行中")}
-                </span>
-              </div>
-              {approval && <ApprovalCard approval={approval} decide={decide} />}
-              <details>
-                <summary>{ui("查看详情")}</summary>
-                <p>
-                  {m.app || ui("本机 Mac")}
-                  {m.error ? " · " + m.error : ""}
-                </p>
-              </details>
-            </div>
-          );
+          return <ToolEvent key={m.id} message={m} approval={approval} decide={decide} />;
         return (
           <article className={"message " + m.role} key={m.id}>
             <div className="message-meta">
@@ -208,22 +251,24 @@ export function Conversation({
                   a: ({ children, ...props }) =>
                     (() => {
                       const href = props.href || "";
-                      const local =
-                        cwd && href.startsWith(cwd + "/")
-                          ? href.slice(cwd.length + 1)
-                          : !href.startsWith("/") &&
-                              !/^[a-z][a-z0-9+.-]*:/i.test(href) &&
-                              !href.startsWith("#")
-                            ? href
+                      const pathname = href.split("#", 1)[0].replace(/:\d+(?::\d+)?$/, "");
+                      let decoded = pathname;
+                      try { decoded = decodeURIComponent(pathname); } catch {}
+                      const workspacePath =
+                        cwd && decoded.startsWith(cwd + "/")
+                          ? decoded.slice(cwd.length + 1)
+                          : decoded && !decoded.startsWith("/") &&
+                              !/^[a-z][a-z0-9+.-]*:/i.test(decoded)
+                            ? decoded
                             : null;
-                      return local && threadId ? (
+                      const localPath = /^\/Users\/[^/]+\/(Desktop|Documents|Downloads)\//.test(decoded)
+                        ? decoded : null;
+                      return threadId && (workspacePath || localPath) ? (
                         <a
                           href={downloadUrl({
                             threadId,
-                            root: "workspace",
-                            path: local,
-                            name: String(children),
-                            size: 0,
+                            root: workspacePath ? "workspace" : "local",
+                            path: workspacePath || localPath!,
                           })}
                           download
                         >

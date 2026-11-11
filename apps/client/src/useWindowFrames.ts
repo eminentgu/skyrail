@@ -63,6 +63,7 @@ export function useWindowFrames(
           update(false, true, true);
           return;
         }
+        if (response.status === 204) delay = Math.max(35, Math.min(3000, Number(response.headers.get("Retry-After") || 0) * 1000));
         if (response.status !== 204) {
           if (!response.ok) throw Error("Frame unavailable");
           const blob = await response.blob();

@@ -2,8 +2,10 @@ import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import type RFB from "./desktop-rfb.mjs";
 import { retryDelay } from "./connection.mjs";
+import { useDesktopCapture } from "./useDesktopCapture";
 import { RemoteSurface } from "./RemoteSurface";
 import { flushSync } from "react-dom";
+import { StreamStatus } from "./StreamStatus";
 import { Icon } from "./Icon";
 type Props = {
   post: (path: string, data?: object, signal?: AbortSignal) => Promise<any>;
@@ -61,6 +63,18 @@ export function RemoteDesktop({
   const termination = useRef<Promise<unknown>>(Promise.resolve());
   const inlineSurface = useRef<HTMLElement>(null);
   const closeRef = useRef<() => Promise<void>>(async () => {});
+  const capture = useDesktopCapture({
+    enabled: visible && stage === "live" && controller === "human" && !switching,
+    focus: () => keyboard ? typing.current?.focus({ preventScroll: true }) : rfb.current?.focus(),
+    ownsFocus: target => target === screen.current?.querySelector("canvas") || target === typing.current,
+    releaseInput: () => rfb.current?.releaseInput(),
+    exit: () => {
+      if (rfb.current) rfb.current.viewOnly = true;
+      void setControl("view").catch(() => {});
+    },
+  });
+  const canInput = visible && stage === "live" && controller === "human" &&
+    !switching && (!capture.desktop || capture.captured);
   const erase = () => {
     for (const value of credentials.current)
       for (const key of Object.keys(value)) delete value[key];
@@ -74,6 +88,7 @@ export function RemoteDesktop({
     const previous = session.current;
     session.current = null;
     renewable.current = false;
+    rfb.current?.releaseInput();
     rfb.current?.blur();
     rfb.current?.disconnect();
     rfb.current = null;
@@ -88,6 +103,8 @@ export function RemoteDesktop({
   useEffect(() => {
     const leave = () => disconnect();
     window.addEventListener("pagehide", leave);
+    const visibility = () => rfb.current?.setStreamVisible(visibleRef.current && !document.hidden);
+    document.addEventListener("visibilitychange", visibility);
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     let tracked: Session | null = null;
@@ -152,7 +169,7 @@ export function RemoteDesktop({
           delay = retryDelay(failures++);
         }
         if (session.current === current && !disposed) {
-          client.qualityLevel = [2, 4, 7][level];
+          client.setStreamLevel(level);
           setQuality(level);
         }
       }
@@ -163,6 +180,7 @@ export function RemoteDesktop({
       disposed = true;
       clearTimeout(timer);
       window.removeEventListener("pagehide", leave);
+      document.removeEventListener("visibilitychange", visibility);
       disconnect();
     };
   }, []);
@@ -202,10 +220,12 @@ export function RemoteDesktop({
     setError("");
     setCredentialTypes([]);
     const attempt = ++generation.current;
+    const initialControl = capture.desktop ? "view" : "human";
     try {
       const s: Session = await postRef.current("desktop/start", {
         clientId,
         replace: active,
+        mode: initialControl,
       });
       if (attempt !== generation.current) {
         void postRef
@@ -228,14 +248,19 @@ export function RemoteDesktop({
       });
       rfb.current = client;
       client.scaleViewport = true;
-      client.qualityLevel = 4;
-      client.compressionLevel = 6;
+      client.setStreamLevel(1);
+      client.setStreamVisible(visibleRef.current && !document.hidden);
       slowFrameAt.current = -Infinity;
       client.addEventListener("skyrail-slow-frame", () => {
         if (attempt !== generation.current) return;
         slowFrameAt.current = performance.now();
-        if (client.qualityLevel > 2) client.qualityLevel = 2;
+        client.setStreamLevel(0);
         setQuality(0);
+      });
+      client.addEventListener("skyrail-stream-quality", (event) => {
+        if (attempt !== generation.current) return;
+        const detail = (event as CustomEvent<{level: number; encoding: number | null}>).detail;
+        setQuality(detail.level);
       });
       client.resizeSession = false;
       client.focusOnClick = !matchMedia("(pointer:coarse)").matches;
@@ -259,9 +284,9 @@ export function RemoteDesktop({
         erase();
         setStage("live");
 
-        client.viewOnly = !visibleRef.current;
-        setController("human");
-        if (visibleRef.current) client.focus();
+        client.viewOnly = initialControl === "view" || !visibleRef.current;
+        setController(initialControl);
+        if (initialControl === "human" && visibleRef.current) client.focus();
         else client.blur();
       });
       client.addEventListener("securityfailure", () => {
@@ -290,6 +315,7 @@ export function RemoteDesktop({
     if (!current || stage !== "live") throw Error(ui("请先连接电脑"));
     setSwitching(true);
     setError("");
+    rfb.current?.releaseInput();
     rfb.current?.blur();
     if (rfb.current) rfb.current.viewOnly = true;
     setKeyboard(false);
@@ -302,6 +328,7 @@ export function RemoteDesktop({
       });
       setController(mode);
       if (rfb.current) rfb.current.viewOnly = mode === "view";
+      if (mode === "human") capture.capture();
     } catch (e) {
       setError((e as Error).message);
       throw e;
@@ -348,9 +375,11 @@ export function RemoteDesktop({
     localStorage.setItem("skyrail.input", inputMode);
   }, [inputMode]);
   useEffect(() => {
-    if (rfb.current)
-      rfb.current.viewOnly = !visible || controller !== "human" || switching;
-  }, [visible, controller, switching, stage]);
+    if (rfb.current) {
+      rfb.current.viewOnly = !canInput;
+      rfb.current.setStreamVisible(visible && !document.hidden);
+    }
+  }, [canInput, visible]);
   const content = (
     <>
       <div className="desktop-toolbar">
@@ -368,17 +397,6 @@ export function RemoteDesktop({
                   ? ui("正在连接…")
                   : ui("尚未连接")}
           </span>
-          {stage === "live" && (
-            <span className="desktop-quality">
-              {unstable
-                ? ui("连接不稳定")
-                : quality === 0
-                  ? ui("低带宽")
-                  : quality === 2
-                    ? ui("高清画质")
-                    : ui("自动画质")}
-            </span>
-          )}
         </div>
         <div>
           <button
@@ -425,8 +443,15 @@ export function RemoteDesktop({
           </details>
         </div>
       </div>
+      {stage === "live" && <StreamStatus
+        label={unstable ? ui("连接不稳定") : quality === 0 ? ui("低带宽")
+          : quality === 2 ? ui("高清画质") : ui("自动画质")}
+        warning={unstable}
+      />}
       <p className="desktop-privacy">
-        {ui("滑动移动光标，轻点单击，连点双击。双指缩放画面。")}
+        {capture.desktop
+          ? canInput ? ui("鼠标和键盘已接管 · Esc 退出") : ui("点击接管后，鼠标和键盘将用于操作 Mac")
+          : ui("滑动移动光标，轻点单击，连点双击。双指缩放画面。")}
       </p>
       {error && (
         <p className="desktop-error" role="alert">
@@ -438,7 +463,7 @@ export function RemoteDesktop({
         hidden={stage !== "live" && stage !== "connecting"}
       >
         <RemoteSurface
-          enabled={stage === "live" && controller === "human" && !switching}
+          enabled={canInput}
           visible={visible && stage === "live"}
           mode={inputMode}
           frame={() =>
@@ -562,7 +587,9 @@ export function RemoteDesktop({
           <div className="desktop-touch-primary">
             <span>
               <span className="status-dot" />
-              {controller === "human"
+              {capture.desktop
+                ? canInput ? ui("鼠标和键盘已接管 · Esc 退出") : ui("只看画面，随时接手")
+                : controller === "human"
                 ? inputMode === "trackpad"
                   ? ui("滑动移光标 · 轻点点击")
                   : ui("点按目标 · 滑动移光标")
@@ -576,13 +603,17 @@ export function RemoteDesktop({
               <Icon name="expand" size={17} />
               {ui("缩放")}
             </button>
-            {controller === "view" ? (
+            {controller === "view" || (capture.desktop && !capture.captured) ? (
               <button
                 className="primary"
                 disabled={switching}
                 onClick={() => void setControl("human").catch(() => {})}
               >
-                {switching ? ui("正在接手…") : ui("接手操作")}
+                {switching ? ui("正在接手…") : capture.desktop ? ui("接管鼠标和键盘") : ui("接手操作")}
+              </button>
+            ) : capture.desktop ? (
+              <button disabled={switching} onClick={() => void setControl("view").catch(() => {})}>
+                {ui("退出接管")} <kbd>Esc</kbd>
               </button>
             ) : (
               <button
@@ -680,7 +711,7 @@ export function RemoteDesktop({
       )}
       {embedded ? (
         <section
-          className="desktop-inline"
+          className={"desktop-inline stage-" + stage + (keyboard ? " keyboard-expanded" : "") + (canInput && capture.desktop ? " remote-captured" : "")}
           ref={inlineSurface}
           aria-label={ui("整台 Mac 控制台")}
         >

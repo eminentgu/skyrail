@@ -1,4 +1,5 @@
 import RFB from "@novnc/novnc";
+import { desktopEncodings, desktopProfiles, nextDesktopProfile } from "./desktop-stream.mjs";
 // Pinned noVNC 1.7.0 integration boundary. noVNC has no public pointer API.
 // Keep wire encoding and keyboard/auth in upstream; only normalized pointer
 // dispatch and fallback-cursor lifecycle live here. Do not patch node_modules.
@@ -9,13 +10,81 @@ export default class DesktopRFB extends RFB {
     this._cursor._canvas.style.opacity = "0";
     this._gestures.detach();
   }
+  _disconnect() {
+    clearTimeout(this._skyrailRequestTimer);
+    this._skyrailRequestTimer = null;
+    super._disconnect();
+  }
+  _sendEncodings() {
+    RFB.messages.clientEncodings(
+      this._sock,
+      desktopEncodings(this._fbDepth, this._qualityLevel, this._compressionLevel),
+    );
+  }
+  _normalMsg() {
+    // Upstream requests a frame immediately after decoding each update. Suppress
+    // that request for this synchronous call and let our bounded scheduler ask.
+    this._enabledContinuousUpdates = true;
+    try {
+      return super._normalMsg();
+    } finally {
+      this._enabledContinuousUpdates = false;
+    }
+  }
+  _updateContinuousUpdates() {
+    // We never advertise continuous updates. If a server offers them anyway,
+    // keep demand-driven updates so frame data cannot accumulate behind input.
+    if (this._supportsContinuousUpdates)
+      RFB.messages.enableContinuousUpdates(this._sock, false, 0, 0, this._fbWidth, this._fbHeight);
+  }
+  setStreamVisible(visible) {
+    this._skyrailVisible = visible;
+    if (visible) this._requestFrame();
+    else {
+      clearTimeout(this._skyrailRequestTimer);
+      this._skyrailRequestTimer = null;
+    }
+  }
+  setStreamLevel(level) {
+    if (!desktopProfiles[level]) return;
+    this._skyrailProfile = { level, good: 0 };
+    this._applyStreamProfile();
+  }
+  _applyStreamProfile() {
+    const level = this._skyrailProfile?.level ?? 1;
+    const profile = desktopProfiles[level];
+    this.qualityLevel = profile.quality;
+    this.compressionLevel = profile.compression;
+    this.dispatchEvent(new CustomEvent("skyrail-stream-quality", {
+      detail: { level, encoding: this._skyrailEncoding ?? null },
+    }));
+  }
+  _requestFrame() {
+    if (this._skyrailRequestTimer || this._skyrailVisible === false ||
+        this._rfbConnectionState !== "connected") return;
+    const level = this._skyrailProfile?.level ?? 1;
+    this._skyrailRequestTimer = setTimeout(() => {
+      this._skyrailRequestTimer = null;
+      if (this._skyrailVisible === false || this._rfbConnectionState !== "connected") return;
+      RFB.messages.fbUpdateRequest(this._sock, true, 0, 0, this._fbWidth, this._fbHeight);
+    }, desktopProfiles[level].interval);
+  }
+  _handleRect() {
+    if (this._FBU.encoding >= 0) this._skyrailEncoding = this._FBU.encoding;
+    return super._handleRect();
+  }
   _framebufferUpdate() {
     this._skyrailFrameStarted ??= performance.now();
     const complete = super._framebufferUpdate();
     if (complete) {
       const elapsed = performance.now() - this._skyrailFrameStarted;
       this._skyrailFrameStarted = undefined;
-      if (elapsed > 350) this.dispatchEvent(new Event("skyrail-slow-frame"));
+      this._skyrailProfile = nextDesktopProfile(
+        this._skyrailProfile ?? { level: 1, good: 0 }, elapsed,
+      );
+      this._applyStreamProfile();
+      if (elapsed > 250) this.dispatchEvent(new Event("skyrail-slow-frame"));
+      this._requestFrame();
     }
     return complete;
   }
@@ -53,6 +122,10 @@ export default class DesktopRFB extends RFB {
       return;
     }
     write(this._surfaceMask || 0);
+  }
+  releaseInput() {
+    this.releasePointer();
+    this._keyboard._allKeysUp();
   }
   releasePointer() {
     if (this._surfaceMask)

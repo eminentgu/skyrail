@@ -9,7 +9,7 @@ export type Attachment = {
   mediaType?: string | null;
   threadId: string;
 };
-export const downloadUrl = (file: Attachment) =>
+export const downloadUrl = (file: Pick<Attachment, "threadId" | "path"> & { root: Attachment["root"] | "local" }) =>
   "/v1/files/download?" +
   new URLSearchParams({
     threadId: file.threadId,

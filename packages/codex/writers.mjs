@@ -21,7 +21,7 @@ export class SessionWriters {
     await this.closing.get(thread.id);
     let writer = this.entries.get(thread.id);
     if (!writer) {
-      writer = this.create();
+      writer = this.create(thread);
       this.entries.set(thread.id, writer);
       writer.on("notification", (message) => this.onNotification(message));
       writer.on("offline", (message) => {
