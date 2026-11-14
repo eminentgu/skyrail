@@ -11,6 +11,7 @@ if(out===root||out===path.parse(out).root||root.startsWith(out+path.sep))throw E
 const site=new URL(process.env.SITE_URL||'https://eminentgu.github.io/skyrail/');
 if(!['https:','http:'].includes(site.protocol))throw Error('SITE_URL must be HTTP(S)');
 site.pathname=site.pathname.replace(/\/?$/,'/');site.search='';site.hash='';
+if(site.hostname==='eminentgu.top')site.protocol='https:';
 const base=site.pathname;
 await rm(out,{recursive:true,force:true});await mkdir(path.join(out,'assets'),{recursive:true});
 await cp(path.join(root,'docs/assets'),path.join(out,'assets'),{recursive:true});

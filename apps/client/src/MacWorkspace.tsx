@@ -40,6 +40,7 @@ type Approval = {
   args: { action: string; index?: number; value?: string; key?: string };
 };
 type Props = {
+  toolsOpen: boolean;
   fullAccess?: boolean;
   lease: Lease;
   stream?: StreamState;
@@ -64,6 +65,7 @@ const actionLabel = (args: Approval["args"]) =>
       ? ui("填写「{0}」", args.value || "")
       : ui("按 {0} 键", args.key || "");
 export function MacWorkspace({
+  toolsOpen,
   fullAccess = true,
   lease,
   stream,
@@ -81,7 +83,6 @@ export function MacWorkspace({
   applicationTools = 0,
   onStopReady,
 }: Props) {
-  const [toolsOpen, showTools] = useState(false);
   const [view, setView] = useState(() =>
     localStorage.getItem("skyrail.scope") === "app" ? "app" : "desktop",
   );
@@ -232,11 +233,6 @@ export function MacWorkspace({
       : undefined;
   return (
     <div className={"computer-workspace" + (toolsOpen ? " tools-open" : "")}>
-      <button className="workspace-tools-orb floating-tool"
-        aria-label={ui("电脑工具")} aria-expanded={toolsOpen}
-        onClick={() => showTools(!toolsOpen)}>
-        <Icon name={toolsOpen ? "close" : "settings"} size={19} />
-      </button>
       <div
         className="computer-mode-bar"
         role="group"
@@ -266,6 +262,7 @@ export function MacWorkspace({
       >
         <RemoteDesktop
           embedded
+          controlsVisible={toolsOpen}
           visible={workspaceVisible && view === "desktop"}
           post={post}
           clientId={clientId}
@@ -470,6 +467,7 @@ export function MacWorkspace({
             {belongs ? (
               <>
                 <InteractiveImage
+                  controlsVisible={toolsOpen}
                   src={source}
                   onRetry={() => setRetry((value) => value + 1)}
                   name={appName}

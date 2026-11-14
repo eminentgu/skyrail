@@ -66,6 +66,7 @@ function fixture() {
 test("whole-desktop profiles request lossy coding before lossless and omit unsolicited continuous updates", () => {
   const encodings = desktopEncodings(24, 0, 9);
   assert.ok(encodings.indexOf(21) < encodings.indexOf(16));
+  assert.ok(encodings.indexOf(21) < encodings.indexOf(7));
   assert.ok(encodings.includes(-32));
   assert.ok(encodings.includes(-247));
   assert.equal(encodings.includes(-313), false);
@@ -121,4 +122,27 @@ test("whole-desktop negotiation handles an unsolicited continuous-update capabil
   assert.equal(f.FakeRFB.continuous, false);
   f.client._handleRect();
   assert.equal(f.client._skyrailEncoding, 21);
+});
+
+test("fast control heartbeats cannot undo a slow-frame downgrade", () => {
+ const f=fixture();f.client.setStreamMode('auto');
+ f.client.complete=false;f.client._normalMsg();f.advance(700);f.client.complete=true;f.client._normalMsg();
+ for(let i=0;i<5;i++)f.client.reportNetworkSample(20);
+ assert.equal(f.client._skyrailProfile.level,0);
+ for(let i=0;i<30;i++)f.client._normalMsg();
+ assert.equal(f.client._skyrailProfile.level,0,'congestion cooldown prevents oscillation');
+ f.advance(12001);for(let i=0;i<30;i++)f.client._normalMsg();
+ assert.equal(f.client._skyrailProfile.level,1);
+ f.client.reportNetworkSample(600);assert.equal(f.client._skyrailProfile.level,0);
+});
+
+test("manual high and connection-first modes stay fixed across congestion and recovery", () => {
+ const f=fixture();
+ f.client.setStreamMode('high');f.client.reportNetworkSample(900,true);
+ f.client.complete=false;f.client._normalMsg();f.advance(1000);f.client.complete=true;f.client._normalMsg();
+ assert.equal(f.client._qualityLevel,8);assert.equal(f.client._skyrailProfile.level,2);
+ f.client.setStreamMode('smooth');f.client.setStreamLevel(2);
+ for(let i=0;i<60;i++)f.client._normalMsg();
+ assert.equal(f.client._skyrailProfile.level,0);assert.equal(f.client._qualityLevel,0);
+ f.client.setStreamMode('auto');assert.equal(f.client._skyrailProfile.level,1);
 });

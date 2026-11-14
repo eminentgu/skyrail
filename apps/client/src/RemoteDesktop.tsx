@@ -15,6 +15,7 @@ type Props = {
   embedded?: boolean;
   visible?: boolean;
   onStopReady?: (stop: () => Promise<void>) => void;
+  controlsVisible?: boolean;
 };
 type Session = { ticket: string; expiresAt: number };
 export function RemoteDesktop({
@@ -25,9 +26,28 @@ export function RemoteDesktop({
   embedded = false,
   visible = true,
   onStopReady,
+  controlsVisible = true,
 }: Props) {
+  const [rememberCredentials, setRememberCredentials] = useState(false);
+  const [savedCredentials, setSavedCredentials] = useState(false);
+  const [credentialStorage, setCredentialStorage] = useState(false);
+  const savedRef = useRef(false);
+  savedRef.current = savedCredentials;
+  const skipSaved = useRef(false);
+  const credentialVersion = useRef(0);
+  const pendingSave = useRef<Record<string,string> | null>(null);
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
+  const [streamMode, setStreamMode] = useState<"auto" | "high" | "smooth">(() => {
+    const saved = localStorage.getItem("skyrail.stream-mode");
+    return saved === "high" || saved === "smooth" ? saved : "auto";
+  });
+  const streamModeRef = useRef(streamMode);
+  streamModeRef.current = streamMode;
+  useEffect(() => {
+    localStorage.setItem("skyrail.stream-mode", streamMode);
+    rfb.current?.setStreamMode(streamMode);
+  }, [streamMode]);
   const slowFrameAt = useRef(0);
   const renewable = useRef(false);
   const zoomAction = useRef<() => void>(() => {});
@@ -50,7 +70,7 @@ export function RemoteDesktop({
     surface = useRef<HTMLDialogElement>(null),
     user = useRef<HTMLInputElement>(null),
     password = useRef<HTMLInputElement>(null),
-    typing = useRef<HTMLInputElement>(null),
+    typing = useRef<HTMLTextAreaElement>(null),
     rfb = useRef<RFB | null>(null),
     session = useRef<Session | null>(null),
     generation = useRef(0),
@@ -75,10 +95,18 @@ export function RemoteDesktop({
   });
   const canInput = visible && stage === "live" && controller === "human" &&
     !switching && (!capture.desktop || capture.captured);
+  useEffect(() => {
+    if (!controlsVisible) {
+      setKeyboard(false);
+      typing.current?.blur();
+      rfb.current?.releaseInput();
+    }
+  }, [controlsVisible]);
   const erase = () => {
     for (const value of credentials.current)
       for (const key of Object.keys(value)) delete value[key];
     credentials.current = [];
+    if (pendingSave.current) {for (const key of Object.keys(pendingSave.current)) delete pendingSave.current[key];pendingSave.current=null;}
     if (password.current) password.current.value = "";
     if (user.current) user.current.value = "";
     if (typing.current) typing.current.value = "";
@@ -108,8 +136,7 @@ export function RemoteDesktop({
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     let tracked: Session | null = null;
-    let level = 1;
-    let good = 0;
+
     let failures = 0;
     let lastSuccess = Date.now();
     const heartbeat = async () => {
@@ -119,8 +146,7 @@ export function RemoteDesktop({
       if (current && client && renewable.current) {
         if (tracked !== current) {
           tracked = current;
-          level = 1;
-          good = failures = 0;
+          failures = 0;
           lastSuccess = Date.now();
         }
         const began = performance.now();
@@ -139,12 +165,7 @@ export function RemoteDesktop({
           failures = 0;
           const slow =
             elapsed > 350 || performance.now() - slowFrameAt.current < 6000;
-          good = !slow && elapsed < 150 ? good + 1 : 0;
-          if (slow) level = 0;
-          else if (good >= 3) {
-            level = Math.min(2, level + 1);
-            good = 0;
-          }
+          client.reportNetworkSample(elapsed);
           setUnstable(slow);
         } catch (error) {
           if (session.current !== current || disposed) {
@@ -163,14 +184,9 @@ export function RemoteDesktop({
             setError(ui("连接已过期，请重新连接；未重放任何输入。"));
             setStage("disconnected");
           }
-          level = 0;
-          good = 0;
+          client.reportNetworkSample(0, true);
           setUnstable(true);
           delay = retryDelay(failures++);
-        }
-        if (session.current === current && !disposed) {
-          client.setStreamLevel(level);
-          setQuality(level);
         }
       }
       if (!disposed) timer = setTimeout(heartbeat, delay);
@@ -208,6 +224,8 @@ export function RemoteDesktop({
       setAvailable(status.available);
       setActive(status.connected || status.active);
       setAccount(status.username || "");
+      setSavedCredentials(status.credentials?.saved === true);
+      setCredentialStorage(status.credentials?.available === true);
     } catch (e) {
       setAvailable(false);
       setError((e as Error).message);
@@ -248,14 +266,14 @@ export function RemoteDesktop({
       });
       rfb.current = client;
       client.scaleViewport = true;
-      client.setStreamLevel(1);
+      client.setStreamMode(streamModeRef.current);
       client.setStreamVisible(visibleRef.current && !document.hidden);
       slowFrameAt.current = -Infinity;
       client.addEventListener("skyrail-slow-frame", () => {
         if (attempt !== generation.current) return;
         slowFrameAt.current = performance.now();
-        client.setStreamLevel(0);
-        setQuality(0);
+        client.reportNetworkSample(0, true);
+        setUnstable(true);
       });
       client.addEventListener("skyrail-stream-quality", (event) => {
         if (attempt !== generation.current) return;
@@ -265,8 +283,10 @@ export function RemoteDesktop({
       client.resizeSession = false;
       client.focusOnClick = !matchMedia("(pointer:coarse)").matches;
       client.showDotCursor = true;
-      client.addEventListener("credentialsrequired", (event) => {
+      let credentialRequestPending=false, triedSaved=false;
+      client.addEventListener("credentialsrequired", async (event) => {
         if (attempt !== generation.current) return;
+        if (credentialRequestPending) return;
         const types = (event as CustomEvent<{ types: string[] }>).detail.types;
         if (types.some((t) => !["username", "password"].includes(t))) {
           setError(ui("系统请求了尚不支持的认证方式，请使用系统账户认证。"));
@@ -276,12 +296,34 @@ export function RemoteDesktop({
         }
         renewable.current = true;
         setCredentialTypes(types);
-        setStage("credentials");
+        if (savedRef.current && !skipSaved.current && !triedSaved) {
+          triedSaved=true;credentialRequestPending=true;
+          try {
+            const stored = await postRef.current("desktop/credentials", {clientId,ticket:s.ticket});
+            if (attempt !== generation.current) return;
+            if (stored.saved && stored.credentials?.password) {
+              const value:Record<string,string> = {password:stored.credentials.password};
+              if (types.includes("username")) value.username=stored.credentials.username || account;
+              credentials.current.push(value);
+              client.sendCredentials(value);
+              return;
+            }
+          } catch { /* A locked Keychain falls back to the explicit form. */ }
+          finally {credentialRequestPending=false;}
+        }
+        if (attempt === generation.current) setStage("credentials");
       });
       client.addEventListener("connect", () => {
         if (attempt !== generation.current) return;
         renewable.current = true;
+        const toSave=pendingSave.current;
+        pendingSave.current=null;
         erase();
+        const saveVersion=credentialVersion.current;
+        if (toSave) void postRef.current("desktop/credentials/save", {clientId,ticket:s.ticket,credentials:toSave})
+          .then(() => {if(saveVersion===credentialVersion.current){setSavedCredentials(true);skipSaved.current=false;}})
+          .catch(() => setError(ui("已连接，但钥匙串保存失败；下次请手动输入。")))
+          .finally(() => {for(const key of Object.keys(toSave))delete toSave[key];});
         setStage("live");
 
         client.viewOnly = initialControl === "view" || !visibleRef.current;
@@ -290,8 +332,10 @@ export function RemoteDesktop({
         else client.blur();
       });
       client.addEventListener("securityfailure", () => {
-        if (attempt === generation.current)
+        if (attempt === generation.current) {
+          skipSaved.current=true;
           setError(ui("系统账户认证失败。请重新连接后检查用户名与密码。"));
+        }
       });
       client.addEventListener("disconnect", () => {
         if (attempt !== generation.current) return;
@@ -358,7 +402,7 @@ export function RemoteDesktop({
     onCloseRef.current();
   }
   closeRef.current = handoff;
-  function sendText(input: HTMLInputElement) {
+  function sendText(input: HTMLTextAreaElement) {
     const value = input.value;
     input.value = "";
     if (stage !== "live" || controller !== "human" || switching) return;
@@ -420,6 +464,16 @@ export function RemoteDesktop({
             </summary>
             <div>
               <label>
+                {ui("画质与流畅度")}
+                <select aria-label={ui("串流模式")} value={streamMode}
+                  onChange={e => setStreamMode(e.target.value as "auto" | "high" | "smooth")}>
+                  <option value="auto">{ui("自动适应网络")}</option>
+                  <option value="high">{ui("高清优先")}</option>
+                  <option value="smooth">{ui("连接优先")}</option>
+                </select>
+              </label>
+              <small>{ui(streamMode === "high" ? "保持高清；弱网时可能更慢。" : streamMode === "smooth" ? "降低画质与帧率，优先保持响应。" : "网络变慢立即降级，稳定后逐步恢复。")}</small>
+              <label>
                 {ui("手机操作")}
                 <select
                   aria-label={ui("手机操作方式")}
@@ -437,17 +491,28 @@ export function RemoteDesktop({
                   "轻点单击，连点双击；连点后按住可拖拽。双指缩放或移动画面。",
                 )}
               </small>
+              {savedCredentials && <button onClick={() => {
+                credentialVersion.current++;
+                void postRef.current("desktop/credentials/forget").then(() => {setSavedCredentials(false);skipSaved.current=false;}).catch(e=>setError(e.message));
+              }}>{ui("忘记连接凭据")}</button>}
               <button onClick={() => void close()}>{ui("断开连接")}</button>
               <small>{ui("切换对话不会断开或锁屏。")}</small>
             </div>
           </details>
         </div>
       </div>
-      {stage === "live" && <StreamStatus
+      {stage === "live" && controlsVisible && <StreamStatus
         label={unstable ? ui("连接不稳定") : quality === 0 ? ui("低带宽")
           : quality === 2 ? ui("高清画质") : ui("自动画质")}
         warning={unstable}
-      />}
+      >
+        <div className="stream-mode-shortcuts" role="group" aria-label={ui("快速切换画质")}>
+          {(["auto", "high", "smooth"] as const).map(mode => <button key={mode}
+            aria-pressed={streamMode === mode} onClick={() => setStreamMode(mode)}>
+            {ui(mode === "auto" ? "自动" : mode === "high" ? "高清优先" : "连接优先")}
+          </button>)}
+        </div>
+      </StreamStatus>}
       <p className="desktop-privacy">
         {capture.desktop
           ? canInput ? ui("鼠标和键盘已接管 · Esc 退出") : ui("点击接管后，鼠标和键盘将用于操作 Mac")
@@ -490,6 +555,8 @@ export function RemoteDesktop({
             if (credentialTypes.includes("username"))
               value.username = user.current?.value || "";
             value.password = password.current?.value || "";
+            if (rememberCredentials && credentialStorage)
+              pendingSave.current={username:value.username || "",password:value.password};
             credentials.current.push(value);
             rfb.current?.sendCredentials(value);
             if (password.current) password.current.value = "";
@@ -503,7 +570,7 @@ export function RemoteDesktop({
           <h2>{ui("欢迎回来。")}</h2>
           <p>
             {ui(
-              "使用 Mac 的系统账户，不是 Skyrail 访问密码。系统有时还会显示登录画面，需要再次输入。",
+              "这是屏幕共享连接认证，与锁屏解锁不同。记住后可自动连接；锁屏密码仍在远程画面里输入。",
             )}
           </p>
           {credentialTypes.includes("username") && (
@@ -521,7 +588,7 @@ export function RemoteDesktop({
             </label>
           )}
           <label>
-            {ui("Mac 密码")}
+            {ui(credentialTypes.includes("username") ? "Mac 密码" : "屏幕共享密码")}
             <input
               ref={password}
               name="mac-password"
@@ -530,6 +597,11 @@ export function RemoteDesktop({
               required
             />
           </label>
+          {credentialStorage && <label className="remember-connection">
+            <input type="checkbox" checked={rememberCredentials} onChange={e=>setRememberCredentials(e.target.checked)} />
+            <span>{ui("记住连接凭据（本机钥匙串）")}</span>
+          </label>}
+          <small>{ui("密码不写入浏览器存储或聊天记录。")}</small>
           <button className="primary">{ui("连接系统桌面")}</button>
         </form>
       )}
@@ -560,6 +632,7 @@ export function RemoteDesktop({
           {available === false && (
             <p>{ui("无需启用“任何人请求控制”或单独设置传统 VNC 密码。")}</p>
           )}
+          {savedCredentials && <p>{ui("已记住连接凭据，将自动验证屏幕共享。")}</p>}
           {active && (
             <p>{ui("另一页面仍连接着这台 Mac，可直接切换到当前设备。")}</p>
           )}
@@ -583,7 +656,7 @@ export function RemoteDesktop({
         </p>
       )}
       {stage === "live" && (
-        <div className="desktop-controls">
+        <div className="desktop-controls" hidden={!controlsVisible}>
           <div className="desktop-touch-primary">
             <span>
               <span className="status-dot" />
@@ -623,6 +696,7 @@ export function RemoteDesktop({
                 onClick={() => {
                   flushSync(() => setKeyboard(!keyboard));
                   if (!keyboard) typing.current?.focus({ preventScroll: true });
+                  else typing.current?.blur();
                 }}
               >
                 <Icon name="keyboard" size={18} />
@@ -632,10 +706,10 @@ export function RemoteDesktop({
           </div>
           {keyboard && controller === "human" && (
             <div className="desktop-keyboard-area">
-              <input
+              <textarea
+                rows={1}
                 className="desktop-keyboard"
                 ref={typing}
-                type="password"
                 autoComplete="off"
                 autoCapitalize="none"
                 autoCorrect="off"

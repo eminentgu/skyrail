@@ -1,0 +1,21 @@
+{
+  "capturedOn": "2026-11-14",
+  "source": "Native Chrome screenshots of the current Skyrail UI; browser chrome hidden.",
+  "data": "Public example conversations. Calculator image is a previously recorded official observation, not a new live stream.",
+  "mobile": "Browser viewport simulation, not iPhone device acceptance.",
+  "privacy": "No personal conversations, account chrome, access credentials, or personal remote addresses.",
+  "files": [
+    {
+      "file": "product-sidebar.jpg",
+      "sha256": "8855d4fb83fef3d962690b9c180b060a587453c16c33e9ca498fec0d280f348c"
+    },
+    {
+      "file": "product-sidebar-dark.jpg",
+      "sha256": "efc7ba4b9f0968abe3d1573262649df03c26fcbeb4f274080296d0ca65195120"
+    },
+    {
+      "file": "product-mobile.jpg",
+      "sha256": "b2feafd3e49d15f1249f28c24b820bddde9db026df64ffb3ec5de2f86e9c3fd5"
+    }
+  ]
+}

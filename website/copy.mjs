@@ -5,7 +5,7 @@ export const copy = {
     "name": "English",
     "tag": "LOCAL DEPLOYMENT · REMOTE ACCESS · LIVE STREAMING",
     "title": "Your Mac stays.<br>Your work goes<br><em>where you do.</em>",
-    "lead": "Turn your own Mac into a remote AI workspace. Run Codex locally, watch Computer Use live in a browser, and take over when needed. Self-host a Dot, Grok bot or Hark-style experience.",
+    "lead": "Turn your own Mac into a remote AI workspace. Run Codex locally, watch Computer Use live in a browser, and take over when needed. Keep your sessions and files on the machine you already own.",
     "start": "Build your workspace",
     "tour": "Take a visual tour",
     "docs": "Documentation",
@@ -136,11 +136,11 @@ export const copy = {
         "label": "Adaptive streaming",
         "code": "02 / STREAM",
         "title": "The present frame comes first.",
-        "text": "Single-app streaming adjusts clarity to delivery speed so the view can keep up on slower links.",
+        "text": "Choose Auto, Quality first or Connection first for the whole-desktop stream. Adapt clarity and pacing when the network slows.",
         "points": [
           [
             "Clarity follows the connection",
-            "Adapt single-app resolution and JPEG quality, then step up as the connection recovers."
+            "Reduce quality and request rate during slow delivery, then recover gradually."
           ],
           [
             "Latest frames, less backlog",
@@ -353,11 +353,11 @@ export const copy = {
         "label": "自适应串流",
         "code": "02 / STREAM",
         "title": "让当前画面，优先到达。",
-        "text": "单应用画面根据传输速度调整清晰度，让弱网下的观看保持跟随。",
+        "text": "为整机串流选择自动、高清优先或连接优先；弱网下优先保持响应。",
         "points": [
           [
             "清晰度随网络调整",
-            "自适应调整单应用分辨率与 JPEG 质量，网络恢复后逐步提高。"
+            "整机与应用通道分别适配；自动模式降级后逐步恢复，手动画质模式保持选择。"
           ],
           [
             "优先传送最新帧",

@@ -3436,7 +3436,6 @@ main.split {
   min-height: 0;
   isolation: isolate;
 }
-.workspace-tools-orb { position: absolute; left: 10px; top: 10px; z-index: 25; }
 .computer-workspace > .computer {
   flex: 1;
   min-height: 0;
@@ -3725,3 +3724,262 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
 .stream-status button { min-height: 36px; white-space: nowrap; font-size: 11px; }
 
 .network-status > .stream-status { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 40; }
+
+/* Mobile picture-in-picture keeps chat and the authenticated viewer mounted. */
+.mobile-window-grip { display:none; }
+@media (max-width:699px), (pointer:coarse) {
+  .computer-dock.is-mobile-floating {
+    position:fixed;left:10px;right:10px;width:auto;z-index:40;
+    height:min(46dvh, calc(var(--app-height,100dvh) * .46), 420px);
+    min-height:min(200px, calc(var(--app-height,100dvh) - 24px));max-height:calc(var(--app-height,100dvh) - 24px);
+    display:flex;flex-direction:column;overflow:hidden;
+    border:1px solid var(--line);border-radius:20px;background:var(--paper);
+    box-shadow:0 14px 46px #152b4a38;
+  }
+  .is-mobile-floating .computer-dock-actions {
+    position:relative;inset:auto;flex:none;min-height:46px;padding:2px 6px;
+    background:var(--surface);align-items:center;gap:4px;
+  }
+  .is-mobile-floating .mobile-window-grip {
+    display:flex;align-items:center;gap:8px;flex:1;min-width:0;min-height:44px;
+    border:0;background:transparent;color:var(--ink);padding:0 8px;touch-action:none;
+    cursor:grab;text-align:left;font-size:12px;
+  }
+  .mobile-window-grip i {width:24px;height:4px;border-radius:4px;background:var(--muted);opacity:.35;margin-left:auto;}
+  .is-mobile-floating .desk-host {flex:1;min-height:0;overflow:hidden;}
+  .is-mobile-floating .computer-workspace > .computer {border-radius:0;}
+  .is-mobile-floating .desktop-form {padding:12px;overflow-y:auto;min-height:0;}
+  .is-mobile-floating .desktop-form h2 {font-size:20px;margin:4px 0;}
+  .is-mobile-floating .desktop-form-icon,.is-mobile-floating .desktop-form > .eyebrow {display:none;}
+  .is-mobile-floating .desktop-form p {font-size:12px;line-height:1.5;}
+}
+.desktop-form .remember-connection {display:flex;align-items:center;gap:8px;font-size:12px;}
+.desktop-form .remember-connection input {width:18px;height:18px;min-height:18px;flex:none;}
+.stream-status > div:has(.stream-mode-shortcuts) {flex-wrap:wrap;max-width:min(300px,calc(100vw - 40px));}
+.stream-mode-shortcuts {display:flex;flex-basis:100%;gap:4px;}
+.stream-mode-shortcuts button {min-height:44px;padding:5px 8px;flex:1;background:var(--surface);border:1px solid var(--line);border-radius:9px;}
+.stream-mode-shortcuts button[aria-pressed="true"] {background:var(--accent);color:var(--paper);}
+
+/* Keep global navigation stable in every computer layout. */
+.app[data-computer-layout] .app-header {
+  display:flex;align-items:center;justify-content:space-between;
+  width:100%;max-width:none;min-height:56px;height:56px;flex:none;gap:12px;
+}
+.app[data-computer-layout] .app-header .brand {min-width:0;flex:1;}
+.app[data-computer-layout] .header-actions {display:flex;align-items:center;gap:8px;flex:none;margin:0;}
+.app[data-computer-layout] .header-actions .theme-toggle {display:grid;place-items:center;}
+.computer-dock-title {flex:1;padding-left:10px;font-size:12px;color:var(--muted);}
+.computer-floating .computer-orb {z-index:45;}
+.computer-dock.is-desktop-floating {
+  position:fixed;right:20px;z-index:40;width:min(640px,calc(100vw - 40px));
+  height:min(62dvh,600px);max-height:calc(100dvh - 88px);min-height:240px;
+  display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line);
+  border-radius:20px;background:var(--paper);box-shadow:0 14px 46px #152b4a38;
+}
+.computer-dock .computer-dock-actions {
+  position:relative;inset:auto;flex:none;display:flex;align-items:center;
+  gap:4px;min-height:46px;padding:2px 6px;background:var(--surface);
+}
+.computer-dock .mobile-window-grip {
+  display:flex;align-items:center;gap:8px;flex:1;min-width:0;min-height:44px;
+  border:0;background:transparent;color:var(--ink);padding:0 8px;
+  touch-action:none;cursor:grab;text-align:left;font-size:12px;
+}
+.mobile-window-grip:active {cursor:grabbing;}
+.mobile-window-grip i {width:24px;height:4px;border-radius:4px;background:var(--muted);opacity:.35;margin-left:auto;}
+.computer-dock .desk-host {flex:1;min-height:0;overflow:hidden;}
+
+/* Closed tools leave only the small entry point over the image. Open tools
+   occupy their own rows, so remote controls are never hidden underneath them. */
+.computer-workspace [hidden],
+.computer-workspace:not(.tools-open) .desktop-controls,
+.computer-workspace:not(.tools-open) .app-touch-controls,
+.computer-workspace:not(.tools-open) .stream-status {display:none;}
+.computer-workspace .computer-mode-bar {
+  position:relative;inset:auto;flex:none;min-height:44px;
+  margin:10px 8px 6px 62px;align-self:flex-start;max-width:calc(100% - 70px);
+}
+.computer-workspace .computer-mode-bar button {padding:6px 10px;white-space:nowrap;}
+.computer-workspace .workspace-top,
+.computer-workspace .desktop-toolbar,
+.computer-workspace .desktop-controls,
+.computer-workspace .app-touch-controls,
+.computer-workspace .mac-setup,
+.computer-workspace .desktop-error,
+.computer-workspace .workspace-error {
+  position:relative;inset:auto;flex:none;width:auto;max-width:100%;
+  margin:4px 8px;padding:6px 8px;box-shadow:none;
+}
+.computer-workspace .desktop-controls {max-height:45%;overflow:auto;}
+.computer-workspace .mac-setup {max-height:40%;overflow:auto;}
+.computer-workspace .desktop-inline {display:flex;flex-direction:column;min-height:0;}
+.computer-workspace .stream-status {position:relative;inset:auto;flex:none;align-self:flex-start;margin:2px 8px;}
+.computer-workspace .stream-status > summary {width:auto;height:28px;min-height:28px;padding:0 10px;border-radius:10px;}
+.computer-workspace .stream-status > summary::after {content:attr(title);font-size:11px;}
+.computer-workspace .stream-status > div {max-width:100%;margin:4px 0;}
+.computer-workspace .live-viewport {display:flex;flex-direction:column;}
+.computer-workspace .live-viewport > .remote-gesture-surface {flex:1;min-height:0;}
+.computer-workspace .keyboard-expanded .remote-gesture-surface {margin-bottom:0;}
+.computer-workspace .remote-keyboard.mobile-keyboard-visible,
+.computer-workspace .keyboard-expanded .remote-keyboard,
+.computer-workspace .keyboard-expanded .desktop-special-keys {
+  position:relative;inset:auto;flex:none;margin:4px 0;max-width:100%;
+}
+@media (max-width:699px), (pointer:coarse) {
+  .app[data-computer-layout] .app-header {height:48px;min-height:48px;padding:0 4px;}
+  .computer-workspace .desktop-touch-primary {flex-wrap:wrap;}
+  .computer-workspace .desktop-touch-primary > span {display:none;}
+  .computer-workspace .desktop-toolbar {min-height:44px;}
+}
+/* The tools entry lives in the title bar, outside the remote pixels. */
+.computer-workspace .computer-mode-bar {margin:6px 8px;max-width:calc(100% - 16px);}
+.computer-workspace .desktop-menu > div {position:static;inset:auto;max-height:180px;overflow:auto;max-width:min(320px,calc(100vw - 48px));}
+@media (max-width:699px), (pointer:coarse) {
+  .computer-dock.is-mobile-floating {
+    min-height:min(160px,calc(var(--app-height,100dvh) - 88px));
+    max-height:calc(var(--app-height,100dvh) - 88px);
+  }
+}
+
+/* One title-bar entry, shared across floating, sidebar and full layouts. */
+.computer-dock {
+  flex-direction:column;background:var(--surface);border:1px solid var(--line);
+  border-radius:18px;isolation:isolate;
+}
+.computer-dock.is-desktop-floating,.computer-dock.is-mobile-floating {
+  right:auto;min-width:0;min-height:0;max-height:none;max-width:none;
+}
+.computer-dock .computer-dock-actions {
+  min-height:44px;height:44px;padding:0 6px 0 10px;gap:8px;
+  border-bottom:1px solid var(--line);border-radius:18px 18px 0 0;
+}
+.computer-dock .computer-dock-title {
+  display:flex;align-items:center;gap:8px;min-width:0;padding:0 6px;
+  font-size:12px;font-weight:600;color:var(--ink);
+}
+.computer-dock .mobile-window-grip {min-height:44px;padding:0 6px;font-weight:600;}
+.mobile-window-grip i {width:20px;height:3px;}
+.computer-menu-trigger {
+  display:grid;place-items:center;flex:none;width:44px;height:44px;min-height:44px;
+  padding:0;border:0;background:transparent;border-radius:12px;color:var(--ink);
+}
+.computer-menu-trigger:hover,.computer-menu-trigger[aria-expanded="true"] {background:var(--accent-soft);}
+.computer-dock-menu {
+  flex:none;max-height: min(340px,45%);overflow:auto;padding:12px;
+  background:var(--paper);border-bottom:1px solid var(--line);color:var(--ink);
+}
+.computer-menu-label {display:block;color:var(--muted);font-size:10px;font-weight:600;margin-bottom:8px;}
+.computer-layout-options {display:flex;gap:4px;padding:3px;background:var(--surface);border-radius:12px;}
+.computer-layout-options > button {
+  flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:6px;
+  min-height:44px;padding:6px;font-size:12px;border:1px solid transparent;border-radius:9px;
+}
+.computer-layout-options > button[aria-pressed="true"] {background:var(--paper);border-color:var(--line);color:var(--accent);}
+.computer-menu-options {display:flex;flex-direction:column;gap:2px;margin-top:10px;}
+.computer-menu-options > button {display:flex;align-items:center;gap:10px;text-align:left;min-height:44px;padding:8px;border-radius:10px;font-size:12px;}
+.computer-menu-options > button:hover {background:var(--surface);}
+.computer-menu-options > button > span {flex:1;}
+.computer-menu-options small {font-size:10px;color:var(--muted);}
+.computer-dock .desk-host {border-radius:0 0 18px 18px;}
+.computer-dock .computer-workspace > .computer {border:0;border-radius:0;}
+.app:not([data-computer-layout="closed"]) > .computer-orb {display:none;}
+.app[data-computer-layout="full"] main.split {display:flex;max-width:none;width:100%;}
+.app[data-computer-layout="full"] main.split > .chat {display:none;}
+.app[data-computer-layout="full"] .computer-dock {width:100%;flex:1;}
+.computer-sidebar-resizer {
+  position:absolute;left:-12px;top:0;bottom:0;width:16px;z-index:2;
+  display:grid;place-items:center;cursor:col-resize;touch-action:none;outline-offset:-3px;
+}
+.computer-sidebar-resizer i {width:3px;height:44px;border-radius:3px;background:var(--line);}
+.computer-sidebar-resizer:hover i,.computer-sidebar-resizer:focus-visible i {background:var(--accent);}
+.computer-resize-rail {
+  display:flex;align-items:center;gap:8px;flex:none;min-height:44px;padding:0 4px 0 12px;
+  border-top:1px solid var(--line);font-size:10px;color:var(--muted);
+}
+.computer-resize-rail > span {flex:1;min-width:0;}
+.computer-resize-done {display:flex;align-items:center;gap:4px;min-height:44px;font-size:11px;padding:0 8px;}
+.computer-window-resizer {width:44px;height:44px;display:grid;place-items:center;flex:none;touch-action:none;cursor:nwse-resize;}
+@media(min-width:700px) and (pointer:fine) {
+  .app[data-computer-layout="sidebar"] main.split {
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;max-width:none;width:100%;
+  }
+  .app[data-computer-layout="sidebar"] main.split > .chat {display:flex;width:100%;max-width:none;min-width:0;padding-inline:16px;}
+  .app[data-computer-layout="sidebar"] .computer-dock {max-width:calc(100vw - 344px);}
+}
+@media(max-width:699px),(pointer:coarse) {
+  .computer-floating .composer-area {padding-right:0;}
+  .computer-menu-options small {display:none;}
+  .computer-dock-menu {padding:10px;}
+  .computer-dock .desktop-form {padding:12px;overflow:auto;}
+  .computer-dock .desktop-form h2 {font-size:20px;margin:4px 0;}
+  .computer-dock .desktop-form p {font-size:12px;line-height:1.5;}
+  .computer-dock .desktop-form-icon,.computer-dock .desktop-form > .eyebrow {display:none;}
+}
+
+/* Remote windows must be opaque: translucent Hark tokens belong to the page,
+   never to stacked windows, settings, or keyboard controls. */
+.computer-dock {--surface:#f3f7f8;--paper:#fbfcfa;background:var(--paper);}
+.app.dark .computer-dock {--surface:#29434e;--paper:#304b56;background:var(--paper);}
+.computer-dock .computer-dock-actions,.computer-dock .computer-mode-bar,
+.computer-dock .desktop-toolbar,.computer-dock .desktop-controls,
+.computer-dock .app-touch-controls {background:var(--paper);}
+.computer-dock .desk-host {height:auto;}
+.computer-dock .desktop-keyboard {font-size:16px;resize:none;min-height:44px;height:44px;max-height:44px;}
+
+@media(max-width:699px),(pointer:coarse) {
+  html,body,#root {height:100%;overflow:hidden;overscroll-behavior:none;}
+  body {position:fixed;inset:0;width:100%;}
+  .app {position:fixed;top:var(--app-top,0px);left:var(--app-left,0px);
+    width:var(--app-width,100%);height:var(--app-height,100dvh);overflow:hidden;}
+  input,textarea,select,.composer textarea {font-size:16px;}
+  .computer-dock .desk-host {flex:1 1 0;min-height:0;}
+  .computer-dock .computer-workspace > .computer {height:auto;flex:1 1 0;min-height:0;overflow:hidden;}
+  .computer-workspace .computer-mode-bar {min-height:44px;height:44px;margin:0 52px 0 4px;max-width:calc(100% - 56px);border:0;background:var(--paper);}
+  .computer-workspace .computer-mode-bar button {font-size:11px;gap:4px;padding:4px 6px;}
+  .computer-workspace .desktop-toolbar {
+    position:absolute;top:auto;bottom:4px;right:4px;left:auto;width:44px;height:44px;min-height:44px;
+    margin:0;padding:0;border:0;border-radius:0;background:var(--paper);z-index:25;
+  }
+  .computer-workspace .desktop-toolbar > div:first-child,
+  .computer-workspace .desktop-toolbar > div:last-child > button,
+  .computer-workspace .desktop-inline > .stream-status {display:none;}
+  .computer-workspace .desktop-toolbar > div:last-child {display:block;}
+  .computer-workspace .desktop-menu > summary {width:44px;height:44px;min-height:44px;display:grid;place-items:center;}
+  .computer-workspace .desktop-toolbar .desktop-menu[open] > div {
+    position:fixed;top:calc(var(--app-top,0px) + 56px);left:12px;right:12px;
+    width:auto;max-width:none;max-height:calc(var(--app-height,100dvh) - 88px);
+    padding:16px;overflow:auto;background:var(--paper);border:1px solid var(--line);
+    border-radius:16px;box-shadow:0 12px 32px #07192255;
+  }
+  .computer-workspace .desktop-controls {
+    flex:none;position:relative;inset:auto;margin:0;padding:4px 8px;max-height:none;
+    width:100%;border:0;border-top:1px solid var(--line);border-radius:0;overflow:visible;
+    padding-right:52px;
+  }
+  .computer-workspace .desktop-touch-primary {display:flex;flex-wrap:nowrap;justify-content:flex-end;gap:4px;}
+  .computer-workspace .desktop-touch-primary > span {display:none;}
+  .computer-workspace .desktop-touch-primary button {min-height:40px;padding:4px 8px;font-size:12px;}
+  .computer-workspace .keyboard-expanded .desktop-controls {padding-right:8px;}
+  .computer-workspace .desktop-keyboard-area {display:flex;flex-direction:column;gap:4px;}
+  .computer-workspace .desktop-keyboard {display:block;width:100%;margin:0;padding:8px 10px;font-size:16px;border-radius:10px;}
+  .computer-workspace .keyboard-expanded .desktop-special-keys {position:static;display:flex;gap:4px;margin:0;width:100%;}
+  .computer-workspace .desktop-special-keys button {flex:1;min-height:36px;height:36px;padding:4px;font-size:12px;}
+  .computer-workspace:has(.keyboard-expanded) .computer-mode-bar,
+  .computer-workspace .keyboard-expanded .desktop-toolbar {display:none;}
+  .keyboard-open .computer-dock.is-mobile-floating:has(.keyboard-expanded) {
+    top:calc(var(--app-top,0px) + 8px)!important;
+    height:calc(var(--app-height,100dvh) - 16px)!important;
+    max-height:calc(var(--app-height,100dvh) - 16px);
+  }
+  .keyboard-open .app:has(.composer textarea:focus) .computer-dock.is-mobile-floating {
+    visibility:hidden;pointer-events:none;
+  }
+  .keyboard-open .app:has(.composer textarea:focus) > .computer-orb {display:grid;}
+  .computer-dock:has(.keyboard-expanded) .computer-dock-menu {max-height:35%;}
+}
+@media(max-width:699px),(pointer:coarse) {
+  .computer-dock.is-mobile-floating:has(.keyboard-expanded) {
+    min-height:min(320px,calc(var(--app-height,100dvh) - 80px));
+  }
+  .computer-workspace .desktop-controls:has(.desktop-keyboard-area) {max-height:60%;overflow:auto;overscroll-behavior:contain;}
+}

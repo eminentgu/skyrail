@@ -45,8 +45,23 @@ export default class DesktopRFB extends RFB {
       this._skyrailRequestTimer = null;
     }
   }
+  setStreamMode(mode) {
+    if (!["auto", "high", "smooth"].includes(mode)) return;
+    this._skyrailMode = mode;
+    this._skyrailCongestedUntil = 0;
+    this.setStreamLevel(mode === "high" ? 2 : mode === "smooth" ? 0 : 1);
+  }
+  reportNetworkSample(elapsed, failed = false) {
+    if ((this._skyrailMode ?? "auto") !== "auto") return;
+    if (failed || elapsed > 350) {
+      this._skyrailCongestedUntil = performance.now() + 12000;
+      this.setStreamLevel(0);
+    }
+  }
   setStreamLevel(level) {
     if (!desktopProfiles[level]) return;
+    const mode = this._skyrailMode ?? "auto";
+    level = mode === "high" ? 2 : mode === "smooth" ? 0 : level;
     this._skyrailProfile = { level, good: 0 };
     this._applyStreamProfile();
   }
@@ -79,9 +94,12 @@ export default class DesktopRFB extends RFB {
     if (complete) {
       const elapsed = performance.now() - this._skyrailFrameStarted;
       this._skyrailFrameStarted = undefined;
-      this._skyrailProfile = nextDesktopProfile(
-        this._skyrailProfile ?? { level: 1, good: 0 }, elapsed,
-      );
+      if ((this._skyrailMode ?? "auto") === "auto") {
+        if (elapsed > 250) this._skyrailCongestedUntil = performance.now() + 12000;
+        this._skyrailProfile = performance.now() < (this._skyrailCongestedUntil ?? 0)
+          ? {level: 0, good: 0}
+          : nextDesktopProfile(this._skyrailProfile ?? {level: 1, good: 0}, elapsed);
+      }
       this._applyStreamProfile();
       if (elapsed > 250) this.dispatchEvent(new Event("skyrail-slow-frame"));
       this._requestFrame();

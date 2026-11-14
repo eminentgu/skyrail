@@ -19,6 +19,7 @@ trap 'rm -rf "$staging"' EXIT
 bundle="$staging/Skyrail Mac.app"
 mkdir -p "$bundle/Contents/MacOS"
 sh scripts/build-session-status.sh
+sh scripts/build-desktop-credentials.sh
 build_capture "$bundle/Contents/MacOS/SkyrailMac"
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>local.skyrail.mac</string><key>CFBundleName</key><string>Skyrail Mac</string><key>CFBundleExecutable</key><string>SkyrailMac</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/><key>NSHighResolutionCapable</key><true/><key>NSAppleEventsUsageDescription</key><string>Skyrail connects to the installed official Codex Computer Use service to carry out the app actions you authorize.</string></dict></plist>
