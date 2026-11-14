@@ -35,7 +35,7 @@
     "@types/react-dom": "19.2.2",
     "micromark": "4.0.3",
     "micromark-extension-gfm": "3.0.0",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   },
   "license": "MIT",
   "description": "Local-first Codex chat, live Mac window streaming, and human takeover",
