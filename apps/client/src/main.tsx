@@ -1178,7 +1178,7 @@ function App() {
         aria-label={panel ? ui("收起电脑") : ui("打开电脑")}
         aria-expanded={panel}
         onClick={() => { showHistory(false); open(!panel); }}>
-        <Icon name={panel ? "chat" : "monitor"} size={22} />
+        <Icon name="monitor" size={22} />
         {hasComputer && <span className="orb-connected" aria-hidden="true" />}
         {!!approvalCount && <span className="orb-count">{approvalCount}</span>}
       </button>

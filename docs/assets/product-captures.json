@@ -1,21 +1,48 @@
 {
   "capturedOn": "2026-11-14",
-  "source": "Native Chrome screenshots of the current Skyrail UI; browser chrome hidden.",
-  "data": "Public example conversations. Calculator image is a previously recorded official observation, not a new live stream.",
+  "version": "bilingual-chrome-floating-v2",
+  "source": "Native Chrome screenshots of the current Skyrail UI. Browser account chrome is hidden.",
+  "data": "Public bilingual example conversations and a captured native Chrome view of the repository-owned Orbit Studio demo website. All dashboard data is fictional.",
+  "demoSource": "website/demo/chrome-workspace.html",
+  "desktop": "Floating Chrome window in both locales.",
   "mobile": "Browser viewport simulation, not iPhone device acceptance.",
   "privacy": "No personal conversations, account chrome, access credentials, or personal remote addresses.",
   "files": [
     {
-      "file": "product-sidebar.jpg",
-      "sha256": "8855d4fb83fef3d962690b9c180b060a587453c16c33e9ca498fec0d280f348c"
+      "file": "product-desktop-en.jpg",
+      "locale": "en",
+      "kind": "product-desktop",
+      "sha256": "09bf7cdbbc68c0a3f7edf395ace05e7d5cd66a8bad29c6b51a6483a70ed31546"
     },
     {
-      "file": "product-sidebar-dark.jpg",
-      "sha256": "efc7ba4b9f0968abe3d1573262649df03c26fcbeb4f274080296d0ca65195120"
+      "file": "product-mobile-en.jpg",
+      "locale": "en",
+      "kind": "product-mobile",
+      "sha256": "c992e6331d4f25650480220526c0a770fced52eb5f9698f5b789613c0c8b8f64"
     },
     {
-      "file": "product-mobile.jpg",
-      "sha256": "b2feafd3e49d15f1249f28c24b820bddde9db026df64ffb3ec5de2f86e9c3fd5"
+      "file": "chrome-studio-en.jpg",
+      "locale": "en",
+      "kind": "chrome-studio",
+      "sha256": "facc13de096a21168585ef53493f09c4b39d8cc2a958c84107427590e8ab86bb"
+    },
+    {
+      "file": "product-desktop-zh.jpg",
+      "locale": "zh",
+      "kind": "product-desktop",
+      "sha256": "cac9d99dd1e53cd20fe61d6dd52339d4b142ebab10dcb4895da0839bdcade3ef"
+    },
+    {
+      "file": "product-mobile-zh.jpg",
+      "locale": "zh",
+      "kind": "product-mobile",
+      "sha256": "f91c5e628cd1d1db6734bf1a736f77eb395feb5439b3cadf2295041fe9480775"
+    },
+    {
+      "file": "chrome-studio-zh.jpg",
+      "locale": "zh",
+      "kind": "chrome-studio",
+      "sha256": "603d6db9afcb2149b6f47adbd88c30f318ddc06e449f9eec9b4c84abba4bba5f"
     }
   ]
 }

@@ -5,3 +5,5 @@ export function fitWindow(rect:WindowRect,limits:WindowLimits):WindowRect;
 export function resizeWindow(rect:WindowRect,dx:number,dy:number,limits:WindowLimits):WindowRect;
 export function sidebarLimits(available:number):{min:number;max:number};
 export function fitSidebar(width:number,available:number):number;
+
+export function shrinkWindow(rect:WindowRect,limits:WindowLimits):WindowRect|null;

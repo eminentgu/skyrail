@@ -29,3 +29,9 @@ export function fitSidebar(width, available) {
     const { min, max } = sidebarLimits(available);
     return clamp(width, min, max);
 }
+
+// At the minimum size the next action is to fold, rather than a silent no-op.
+export function shrinkWindow(rect, limits) {
+    const next = fitWindow({...rect, width: rect.width * .75, height: rect.height * .75}, limits);
+    return Math.abs(next.width - rect.width) > .5 || Math.abs(next.height - rect.height) > .5 ? next : null;
+}

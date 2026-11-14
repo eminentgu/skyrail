@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject, type PointerEvent, type KeyboardEvent } from "react";
-import { fitWindow, resizeWindow, windowLimits, fitSidebar, sidebarLimits, type WindowRect } from "./computer-layout.mjs";
+import { fitWindow, shrinkWindow, resizeWindow, windowLimits, fitSidebar, sidebarLimits, type WindowRect } from "./computer-layout.mjs";
 export function useFloatingComputer(enabled: boolean, host: RefObject<HTMLElement | null>, desktop = false, sidebar = false) {
     const storageKey = desktop ? "skyrail.desktop-window" : "skyrail.mobile-window";
     const readSaved = () => { try {
@@ -134,12 +134,13 @@ export function useFloatingComputer(enabled: boolean, host: RefObject<HTMLElemen
     const handlers = (kind: 'move' | 'size' | 'sidebar') => ({ onPointerDown: start(kind), onPointerMove: move, onPointerUp: stop, onPointerCancel: stop,
         onLostPointerCapture: stop, ...(kind !== 'move' ? { onKeyDown: keys(kind) } : {}) });
     const shrink = () => {
-        const next = fitWindow({...current.current, width: current.current.width * .75,
-            height: current.current.height * .75}, limits());
+        const next = shrinkWindow(current.current, limits());
+        if (!next) return false;
         current.current = next;
         preferred.current = next;
         setRect(next);
         save(next);
+        return true;
     };
     return { shrink, rect, sidebarWidth, sidebarRange: sidebarLimits(available()), move: handlers('move'), resize: handlers('size'), separator: handlers('sidebar') };
 }
