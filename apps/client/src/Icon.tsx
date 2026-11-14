@@ -1,11 +1,14 @@
 import React from "react";
 type Name =
+  | "more"
+  | "resize"
   | "image"
   | "file"
   | "folder"
   | "download"
   | "chat"
   | "monitor"
+  | "sidebar"
   | "history"
   | "plus"
   | "close"
@@ -24,6 +27,9 @@ type Name =
   | "trash"
   | "back";
 const paths: Record<Name, React.ReactNode> = {
+  more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
+  resize: <path d="m8 20 12-12M14 20l6-6"/>,
+  sidebar: <><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M14 3v18"/></>,
   file: (
     <>
       <path d="M6 3h8l4 4v14H6Z" />

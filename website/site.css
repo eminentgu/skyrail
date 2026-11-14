@@ -64,3 +64,16 @@ body{background:radial-gradient(ellipse 75% 700px at 100% 300px,var(--aura-blue)
 @supports not (backdrop-filter:blur(1px)){.site-header,.floating-caption{background:var(--surface)}}
 .hero .eyebrow{display:inline-flex;align-items:center;padding:7px 11px;border:1px solid var(--glass-line);border-radius:50px;background:var(--glass);box-shadow:inset 0 1px rgba(255,255,255,.08)}
 @media(max-width:720px){.hero .eyebrow{font-size:9px;letter-spacing:1px;padding:7px 9px}}
+/* Current-product photography takes precedence over illustrative mockups. */
+.product-showcase {padding-top:36px;}
+.product-shot-grid {display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:24px;align-items:start;}
+.product-shot-grid .remote-demo-image {margin:0;padding:8px 8px 0;background:var(--surface);border:1px solid var(--line);box-shadow:0 16px 44px #0d233312;backdrop-filter:none;border-radius:20px;overflow:hidden;}
+.shot-label {display:block;padding:10px 10px 16px;color:var(--muted);font-size:10px;letter-spacing:1.4px;font-weight:600;}
+.product-shot-grid img {border-radius:10px;width:100%;height:auto;}
+.product-shot-grid figcaption {font-size:11px;letter-spacing:0;line-height:1.7;padding:14px 10px 16px;}
+.phone-product-shot {margin-top:64px!important;}
+.showcase-notes {display:flex;justify-content:center;flex-wrap:wrap;gap:12px 28px;margin-top:32px;color:var(--muted);font-size:12px;}
+.showcase-notes>span {display:flex;align-items:center;gap:8px;}
+.showcase-notes svg {width:16px;height:16px;}
+.hero .browser-frame picture img {aspect-ratio:3024/1898;object-fit:contain;}
+@media(max-width:900px){.product-shot-grid{grid-template-columns:1fr;gap:20px}.phone-product-shot{margin-top:0!important}.product-showcase{padding-top:16px}.showcase-notes{justify-content:flex-start;gap:12px;font-size:11px}}

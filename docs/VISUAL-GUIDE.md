@@ -7,13 +7,13 @@
 A conversation, a live computer view and your own Mac. This guide shows how the pieces fit together before you set up permissions.
 
 > [!NOTE]
-> Interface screenshots below use synthetic example data. They demonstrate the UI, not a completed model task, real device certification or live desktop acceptance. The current product interface is Chinese; the documentation is bilingual.
+> Interface screenshots below use synthetic example data. They demonstrate the UI, not a completed model task, real device certification or live desktop acceptance. The product and documentation support Chinese and English. New captures use the current UI with public example conversations and a previously recorded official Calculator observation.
 
 ## 1. A conversation that continues
 
 Open a Codex conversation and keep the message, results and working directory together. Type a task in the composer; use the folder button for files and the settings button for access choices.
 
-![Example data: a conversation and its composer](assets/workspace-example.png)
+![Example data: a conversation and its composer](assets/product-sidebar.jpg)
 
 The illustrated messages are examples. To test your own account, use a fresh conversation and a harmless request such as `Reply SKYRAIL_CHAT_OK without tools`.
 
@@ -43,9 +43,9 @@ Sending a task parks manual desktop input while retaining the connection. The mo
 
 ## 5. A browser-sized workspace
 
-The mobile layout keeps conversation and computer navigation at the bottom. Open **Input text** when you need the keyboard. Use the default trackpad gestures, or choose direct targeting when appropriate.
+The phone uses a floating computer entry and a single title-bar menu. Keep chatting, open a computer window, resize it, or maximize it. Open **Input text** when you need the keyboard. Use the default trackpad gestures, or choose direct targeting when appropriate.
 
-![Example data: the conversation layout at a 390px mobile viewport](assets/mobile-example.png)
+![Current product UI: conversation and computer floating window at simulated phone viewports](assets/product-mobile.jpg)
 
 ![Phone interaction map: pointer, taps, drag, zoom and text entry](assets/gestures-en.svg)
 
@@ -58,3 +58,7 @@ Run the service on your Mac. For another device, put your authenticated gateway 
 ![Remote access: browser, HTTPS gateway and local Mac service](assets/remote-path-en.svg)
 
 [Start local setup →](GETTING-STARTED.md) · [Set up remote access →](REMOTE-ACCESS.md)
+
+## About these product captures
+
+The November 14 product images are native Chrome screenshots of the current Skyrail React UI, rendered locally with public example content. The Calculator view reuses the recorded official `7×8=56` observation. They are product demonstrations, not a new live-stream or iPhone acceptance claim. No private conversation, browser account chrome, access credential or personal remote address is included. [Capture provenance](assets/product-captures.json).

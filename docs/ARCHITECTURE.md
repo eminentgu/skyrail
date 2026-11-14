@@ -133,3 +133,24 @@ Real chat submissions, native Codex turns and the registered Skyrail MCP tool co
 ## Whole-desktop pacing
 
 Whole-desktop video now prefers JPEG-capable encodings before lossless codecs and does not advertise continuous updates. The pinned noVNC adapter suppresses its immediate next-frame request, then schedules one incremental update after 50/100/200 ms. A frame taking over 250 ms selects JPEG quality 0, compression 9 and the 200 ms interval. Recovery requires sustained fast frames. Folding the viewer or hiding the browser tab stops new update requests while preserving the authenticated connection. This controls demand without dropping bytes from the stateful RFB stream. The remote server chooses the actual encoding; physical desktop resolution is unchanged. Protocol simulations verify pacing and gate behavior. They do not establish measured bandwidth reduction against Apple's Screen Sharing encoder.
+
+## Desktop quality modes and mobile floating window (2026-11-13)
+
+The RFB adapter owns adaptive quality. Heartbeats report congestion but never promote quality independently. Slow frames or failed/slow renewals trigger a 12-second hold at the lowest profile, then sustained fast frames allow gradual recovery. Explicit High quality and Connection first modes remain fixed; preferences persist without reconnecting. All modes preserve input gating and continuous-update suppression. JPEG hints depend on the server's actual encoder; no physical display-resolution change is attempted.
+
+Phones default to a draggable floating computer window above the still-mounted chat, with a full-workspace toggle. Only the header grip moves the window; its gestures do not send Mac input. Viewport/keyboard changes keep it inside the visible area. Folding pauses requests and releases input without discarding the authenticated connection. Desktop also defaults to a draggable floating window, adds a sidebar toggle, and remembers that preference. Navigation stays visible in all application layouts. Controls default to folded; the tools entry lives in the dock title bar, and expanded controls occupy layout rows outside the video.
+
+## Optional remembered Screen Sharing credentials
+
+The first successful screen-sharing login may be saved only after an explicit user checkbox. A separate `SkyrailCredentials` helper uses macOS Security APIs to read/write/delete one own-service Keychain item. It receives secret values over stdin, never argv; Keychain interaction UI is disabled, so a locked/denied store falls back to the manual form. The helper can be built independently with `npm run setup:credentials` without replacing or re-signing Skyrail Mac.app. It is also built by normal Mac setup.
+
+The authenticated browser can read the remembered value once per owned RFB lease and only during an actual security-authentication phase. The save endpoint requires successful RFB authentication. Status exposes availability only. Passwords never enter SSE, native model tools, localStorage, or application JSON files. The browser holds credentials in memory only for authentication and clears its temporary values afterward. Duplicate credential events are coalesced; a failed saved login falls back to manual entry rather than repeatedly replaying it. Forgetting the Keychain item does not lock or disconnect the Mac. This does not remove Screen Sharing authentication or auto-enter a lock-screen password.
+
+Validation includes fixed/manual quality behavior, congestion cooldown, one-shot credential access and authentication-phase guards, synthetic UI saved-login/manual-fallback flows, mobile float/full/fold mount preservation, and a real own-item Keychain round trip followed by deletion. A real account's stored-login flow and iPhone visual/device acceptance still require owner interaction and are not inferred from those checks.
+
+
+### Unified dock menu and bounded sizing
+
+`ComputerDock` owns window chrome, its single menu, and an optional resize rail; `MacWorkspace` remains the same child through floating/sidebar/full transitions. Sidebar content uses column flex and a bounded width, leaving at least 280px plus the split gap for chat. A pointer-captured separator adjusts sidebar width; the resize rail adjusts both floating dimensions without overlapping the remote surface. Pointer events on chrome never enter remote input handling.
+
+`computer-layout.mjs` isolates geometry constraints for direct tests. `useFloatingComputer` uses the visual viewport, navigation clearance and screen offsets, remembers desktop/mobile dimensions separately, and restores the preferred dimensions after temporary keyboard constraints. Native streams and input leases are unchanged by layout actions. The menu offers layout selection, controls, resize and fold; closing it removes its layout space.

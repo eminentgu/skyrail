@@ -19,6 +19,7 @@ type Props = {
   takeControl?: () => void;
   releaseControl?: () => void;
   visible?: boolean;
+  controlsVisible?: boolean;
   onRetry?: () => void;
 };
 export function InteractiveImage({
@@ -33,6 +34,7 @@ export function InteractiveImage({
   takeControl,
   releaseControl,
   visible = true,
+  controlsVisible = true,
   onRetry,
 }: Props) {
   const image = useRef<HTMLImageElement>(null),
@@ -60,6 +62,13 @@ export function InteractiveImage({
         : "trackpad",
     );
   const pendingMove = useRef<{ input: SurfaceInput } | null>(null);
+  useEffect(() => {
+    if (!controlsVisible) {
+      keyboard.current?.blur();
+      setFocused(false);
+      release();
+    }
+  }, [controlsVisible]);
   function send(input: object) {
     const expected = { epoch, threadId },
       version = generation.current;
@@ -153,7 +162,7 @@ export function InteractiveImage({
           draggable={false}
         />
       </RemoteSurface>
-      <StreamStatus
+      {controlsVisible && <StreamStatus
         label={video.paused ? ui("画面已暂停")
           : video.waiting ? ui("正在恢复画面…")
           : !video.ready ? ui("等待画面…")
@@ -161,8 +170,8 @@ export function InteractiveImage({
           : video.level === 2 ? ui("高清画质") : ui("自适应画质")}
         warning={video.waiting || video.paused}
         retry={video.waiting ? onRetry : undefined}
-      />
-      <div className="app-touch-controls">
+      />}
+      <div className="app-touch-controls" hidden={!controlsVisible}>
         <span>{capture.desktop
           ? enabled ? ui("鼠标和键盘已接管 · Esc 退出") : ui("只看画面")
           : enabled ? ui("滑动移光标 · 轻点点击") : ui("只看画面")}</span>

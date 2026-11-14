@@ -17,3 +17,22 @@ test('site chrome exposes keyboard-accessible search, theme, navigation and imag
 test('custom-domain root emits resolvable assets and canonical URLs without the project prefix',async()=>{const custom=path.join(temp,'custom');execFileSync(process.execPath,['scripts/build-docs.mjs'],{env:{...process.env,DOCS_OUT_DIR:custom,SITE_URL:'https://docs.example.test'},stdio:'pipe'});const all=new Set(await walk(custom));for(const file of all){if(!file.endsWith('.html'))continue;const html=await readFile(file,'utf8');assert.match(html,/rel="canonical" href="https:\/\/docs\.example\.test\//);assert.doesNotMatch(html,/\b(?:src|href)="\/skyrail\//);assert.doesNotMatch(html,/src="[^" ]*main\.tsx/);for(const [,url] of html.matchAll(/\b(?:href|src)="(\/[^" ]*)"/g)){let target=path.join(custom,decodeURIComponent(url.split(/[?#]/)[0]));if(url.split(/[?#]/)[0].endsWith('/'))target=path.join(target,'index.html');assert.ok(all.has(target),file+': '+url)}}});
 
 test('styles and behavior carry one content-based revision across every page',()=>{const revisions=new Set();for(const {html} of htmls){for(const name of ['site.css','site.js','theme.js']){const match=html.match(new RegExp('assets/'+name.replace('.','\\.')+'\\?v=([a-f0-9]{12})'));assert.ok(match,name);revisions.add(match[1])}}assert.equal(revisions.size,1)});
+
+test('landing uses current raster product captures with accurate demo boundaries',async()=>{
+ for(const lang of ['en','zh']){
+  const file=path.join(out,lang==='zh'?'zh':'','index.html');
+  const html=await readFile(file,'utf8');
+  assert.match(html,/product-sidebar\.jpg/);
+  assert.match(html,/product-sidebar-dark\.jpg/);
+  assert.match(html,/product-mobile\.jpg/);
+  assert.doesNotMatch(html,/remote-demo-(?:en|zh)\.svg/);
+  assert.match(html,lang==='zh'?/非 iPhone 实机验收/:/not iPhone device acceptance/);
+ }
+ const manifest=JSON.parse(await readFile(path.join(out,'assets/product-captures.json'),'utf8'));
+ const {createHash}=await import('node:crypto');
+ for(const entry of manifest.files){
+  const bytes=await readFile(path.join(out,'assets',entry.file));
+  assert.equal(bytes[0],0xff);assert.equal(bytes[1],0xd8);
+  assert.equal(createHash('sha256').update(bytes).digest('hex'),entry.sha256);
+ }
+});

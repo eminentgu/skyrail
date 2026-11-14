@@ -1,3 +1,4 @@
+import { ComputerDock } from "./ComputerDock";
 import { retryDelay } from "./connection.mjs";
 import { getLanguage, setLanguage, t as ui } from "./i18n";
 import React, { useEffect, useState } from "react";
@@ -83,12 +84,19 @@ function App() {
     [attachments, setAttachments] = useState<Attachment[]>([]);
   const [desktopLayout, setDesktopLayout] = useState(() =>
     matchMedia("(min-width:700px) and (pointer:fine)").matches);
+  const [mobileFloating, setMobileFloating] = useState(() => localStorage.getItem("skyrail.mobile-computer") !== "full");
+  const [desktopComputer, setDesktopComputer] = useState<"floating" | "sidebar">(() => localStorage.getItem("skyrail.desktop-computer") === "sidebar" ? "sidebar" : "floating");
+  const [computerToolsOpen, setComputerToolsOpen] = useState(false);
+  const floating = panel && !full && (desktopLayout ? desktopComputer === "floating" : mobileFloating);
+  const computerPage = panel && !floating;
+  useEffect(() => { localStorage.setItem("skyrail.mobile-computer", mobileFloating ? "floating" : "full"); }, [mobileFloating]);
+  useEffect(() => { localStorage.setItem("skyrail.desktop-computer", desktopComputer); }, [desktopComputer]);
   const [composerExpanded, expandComposer] = useState(false);
   const hasComputer = (!!state.lease.app && state.lease.threadId === selected) ||
     !!state.desktop?.connected;
   function open(value: boolean) {
     setPanel(value);
-    if (!value) setFull(false);
+    if (!value) {setFull(false);setComputerToolsOpen(false);}
   }
   useEffect(() => {
     const media = matchMedia("(min-width:700px) and (pointer:fine)");
@@ -119,6 +127,11 @@ function App() {
         "--app-height",
         viewport.height + "px",
       );
+      document.documentElement.style.setProperty("--app-top", viewport.offsetTop + "px");
+      document.documentElement.style.setProperty("--app-left", viewport.offsetLeft + "px");
+      document.documentElement.style.setProperty(
+        "--app-width", viewport.width + "px",
+      );
       document.documentElement.classList.toggle(
         "keyboard-open",
         window.innerHeight - viewport.height > 140,
@@ -126,8 +139,11 @@ function App() {
     };
     resize();
     viewport?.addEventListener("resize", resize);
+    viewport?.addEventListener("scroll", resize);
     return () => {
       viewport?.removeEventListener("resize", resize);
+      viewport?.removeEventListener("scroll", resize);
+      for (const name of ["--app-top", "--app-left", "--app-width"]) document.documentElement.style.removeProperty(name);
       document.documentElement.style.removeProperty("--app-height");
       document.documentElement.classList.remove("keyboard-open");
     };
@@ -522,7 +538,8 @@ function App() {
   ).length;
   return (
     <div
-      className={"app " + (dark ? "dark " : "") + (panel ? "desktop-view" : "")}
+      className={"app " + (dark ? "dark " : "") + (computerPage ? "desktop-view" : "") + (floating ? " computer-floating" : "")}
+      data-computer-layout={!panel ? "closed" : floating ? "floating" : desktopLayout && !full ? "sidebar" : "full"}
     >
       <header className="app-header">
         <a
@@ -629,7 +646,7 @@ function App() {
           </button>
         </div>
       )}
-      <main className={`${panel ? "split" : ""} ${full ? "full" : ""}`}>
+      <main className={`${computerPage ? "split" : ""} ${full ? "full" : ""}`}>
         <section
           className="chat"
           aria-label={ui("Codex 对话")}
@@ -981,7 +998,7 @@ function App() {
                 rows={1}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={ui("给 Codex 发消息…")}
+                placeholder={ui(desktopLayout ? "给 Codex 发消息…" : "发消息…")}
                 aria-describedby={state.desktop?.active ? "composer-handoff-hint" : undefined}
                 aria-label={ui("消息")}
                 onKeyDown={(e) => {
@@ -1099,19 +1116,19 @@ function App() {
             </p>
           </div>
         </section>
-        <aside className={"computer-dock " + (!panel ? "is-hidden" : "")} aria-label={ui("电脑侧栏")}>
-          <div className="computer-dock-actions">
-            <button className="floating-tool" onClick={() => setFull(!full)}
-              aria-label={full ? ui("恢复侧栏") : ui("最大化电脑")}>
-              <Icon name="expand" size={18} />
-            </button>
-            <button className="floating-tool" onClick={() => open(false)} aria-label={ui("收起电脑")}>
-              <Icon name="close" size={18} />
-            </button>
-          </div>
-          <div className="desk-host">
+        <ComputerDock visible={panel} desktop={desktopLayout}
+          layout={floating ? "floating" : desktopLayout && !full ? "sidebar" : "full"}
+          toolsOpen={computerToolsOpen} onTools={() => setComputerToolsOpen(!computerToolsOpen)}
+          onClose={() => open(false)} onLayout={layout => {
+            setComputerToolsOpen(false);
+            if (desktopLayout) {
+              if (layout !== "full") setDesktopComputer(layout);
+              setFull(layout === "full");
+            } else {setMobileFloating(layout === "floating");setFull(false);}
+          }}>
           {token ? (
             <MacWorkspace
+              toolsOpen={computerToolsOpen}
               running={running}
               lease={state.lease}
               stream={state.stream}
@@ -1139,8 +1156,7 @@ function App() {
               {ui("正在连接你的 Mac…")}
             </div>
           )}
-          </div>
-        </aside>
+        </ComputerDock>
       </main>
       {filesOpen && (
         <FilesPanel
@@ -1159,7 +1175,7 @@ function App() {
         />
       )}
       <button className={"computer-orb " + (panel ? "is-open" : "") + (hasComputer ? " is-connected" : "")}
-        aria-label={panel ? ui("返回对话") : ui("打开电脑")}
+        aria-label={panel ? ui("收起电脑") : ui("打开电脑")}
         aria-expanded={panel}
         onClick={() => { showHistory(false); open(!panel); }}>
         <Icon name={panel ? "chat" : "monitor"} size={22} />

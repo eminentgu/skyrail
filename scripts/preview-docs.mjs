@@ -4,7 +4,7 @@ import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'../docs-dist');
 const base=new URL(process.env.SITE_URL||'https://eminentgu.github.io/skyrail/').pathname.replace(/\/?$/,'/');
 const port=Number(process.env.DOCS_PORT||4319);
-const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.json':'application/json; charset=utf-8','.txt':'text/plain; charset=utf-8','.xml':'application/xml; charset=utf-8'};
+const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.json':'application/json; charset=utf-8','.txt':'text/plain; charset=utf-8','.xml':'application/xml; charset=utf-8'};
 const server=http.createServer(async(req,res)=>{
  try{
  const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);

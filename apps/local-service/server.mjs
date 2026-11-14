@@ -23,6 +23,7 @@ import {MacPower} from '../../packages/macos/power.mjs';
 import {DesktopConsole,probeDesktop,rejectUpgrade} from '../../packages/macos/desktop.mjs';
 import {OfficialComputerClient} from '../../packages/computer/official-client.mjs';
 import {OfficialComputerAgent} from '../../packages/computer/official-agent.mjs';
+import {DesktopCredentials,desktopCredentialRequest} from '../../packages/macos/credentials.mjs';
 import {MacBridge,computerTools,macInstructions} from '../../packages/macos/index.mjs';
 const root=path.resolve(import.meta.dirname,'../..');process.chdir(root);
 const dataRoot=path.resolve(process.env.SKYRAIL_DATA_DIR||path.join(root,'.data'));
@@ -87,6 +88,7 @@ stream.on('change', () => {
  for (const client of clients) if (!client.writableNeedDrain) client.write(data);
 });
 const mac=new MacBridge(root,{power});const approvals=new Map();
+const desktopCredentials=new DesktopCredentials(root);
 const officialAgent=new OfficialComputerAgent(mac,new OfficialComputerClient());
 const desktop=new DesktopConsole({beforeAcquire:async()=>{
  officialAgent.revoke();
@@ -288,7 +290,10 @@ const server=http.createServer(async(req,res)=>{
  if(req.method!=='POST'||req.headers['x-skyrail-token']!==token)return json(res,403,{message:'会话校验失败'});
  try{
  let raw='';for await(const c of req){raw+=c;if(raw.length>64000)throw Object.assign(new Error('消息过长'),{status:413})}const body=JSON.parse(raw||'{}');
- if(url.pathname==='/v1/desktop/status')return json(res,200,{...await probeDesktop(),...desktop.status(),username:userInfo().username});
+ if(url.pathname==='/v1/desktop/status')return json(res,200,{...await probeDesktop(),...desktop.status(),username:userInfo().username,credentials:await desktopCredentials.status()});
+ if(url.pathname==='/v1/desktop/credentials')return json(res,200,await desktopCredentialRequest(desktop,desktopCredentials,'read',body));
+ if(url.pathname==='/v1/desktop/credentials/save')return json(res,200,await desktopCredentialRequest(desktop,desktopCredentials,'save',body));
+ if(url.pathname==='/v1/desktop/credentials/forget')return json(res,200,await desktopCredentials.forget());
  if(url.pathname==='/v1/desktop/start')return json(res,200,await desktop.start(body.clientId,{replace:body.replace===true,mode:body.mode||'human'}));
  if(url.pathname==='/v1/desktop/renew')return json(res,200,desktop.renew(body.clientId,body.ticket));
  if(url.pathname==='/v1/desktop/stop'){desktop.stop(body.clientId,body.ticket);return json(res,200,{ok:true})}

@@ -5,11 +5,11 @@ export const copy = {
     "name": "English",
     "tag": "LOCAL DEPLOYMENT · REMOTE ACCESS · LIVE STREAMING",
     "title": "Your Mac stays.<br>Your work goes<br><em>where you do.</em>",
-    "lead": "Turn your own Mac into a remote AI workspace. Run Codex locally, watch Computer Use live in a browser, and take over when needed. Self-host a Dot, Grok bot or Hark-style experience.",
+    "lead": "Turn your own Mac into a remote AI workspace. Run Codex locally, watch Computer Use live in a browser, and take over when needed. Keep your sessions and files on the machine you already own.",
     "start": "Build your workspace",
     "tour": "Take a visual tour",
     "docs": "Documentation",
-    "features": "The experience",
+    "features": "Product tour",
     "github": "View source",
     "label": "LOCAL CODEX · LIVE COMPUTER USE",
     "version": "Early access · macOS 14+ · Open source",
@@ -136,11 +136,11 @@ export const copy = {
         "label": "Adaptive streaming",
         "code": "02 / STREAM",
         "title": "The present frame comes first.",
-        "text": "Single-app streaming adjusts clarity to delivery speed so the view can keep up on slower links.",
+        "text": "Choose Auto, Quality first or Connection first for the whole-desktop stream. Adapt clarity and pacing when the network slows.",
         "points": [
           [
             "Clarity follows the connection",
-            "Adapt single-app resolution and JPEG quality, then step up as the connection recovers."
+            "Reduce quality and request rate during slow delivery, then recover gradually."
           ],
           [
             "Latest frames, less backlog",
@@ -222,11 +222,11 @@ export const copy = {
     "name": "简体中文",
     "tag": "本地部署 · 远程使用 · 浏览器串流",
     "title": "电脑留在本地，<br>工作随你，<br><em>到任何地方。</em>",
-    "lead": "把自己的 Mac 变成远程 AI 工作台。用本地 Codex 执行任务，在浏览器实时观看 Computer Use，随时接手。自行搭建接近 Dot / Grok bot / Hark 的使用体验。",
+    "lead": "把自己的 Mac 变成远程 AI 工作台。用本地 Codex 执行任务，在浏览器实时观看 Computer Use，随时接手。原有会话、项目文件与运行时，都留在你自己的电脑上。",
     "start": "搭建自己的工作台",
     "tour": "图解认识 Skyrail",
     "docs": "使用文档",
-    "features": "体验一览",
+    "features": "产品演示",
     "github": "查看源码",
     "label": "LOCAL CODEX · LIVE COMPUTER USE",
     "version": "早期版本 · macOS 14+ · 开源",
@@ -353,11 +353,11 @@ export const copy = {
         "label": "自适应串流",
         "code": "02 / STREAM",
         "title": "让当前画面，优先到达。",
-        "text": "单应用画面根据传输速度调整清晰度，让弱网下的观看保持跟随。",
+        "text": "为整机串流选择自动、高清优先或连接优先；弱网下优先保持响应。",
         "points": [
           [
             "清晰度随网络调整",
-            "自适应调整单应用分辨率与 JPEG 质量，网络恢复后逐步提高。"
+            "整机与应用通道分别适配；自动模式降级后逐步恢复，手动画质模式保持选择。"
           ],
           [
             "优先传送最新帧",
