@@ -3882,7 +3882,7 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
 .computer-menu-options small {font-size:10px;color:var(--muted);}
 .computer-dock .desk-host {border-radius:0 0 18px 18px;}
 .computer-dock .computer-workspace > .computer {border:0;border-radius:0;}
-.app:not([data-computer-layout="closed"]) > .computer-orb {display:none;}
+
 .app[data-computer-layout="full"] main.split {display:flex;max-width:none;width:100%;}
 .app[data-computer-layout="full"] main.split > .chat {display:none;}
 .app[data-computer-layout="full"] .computer-dock {width:100%;flex:1;}
@@ -3982,4 +3982,20 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
     min-height:min(320px,calc(var(--app-height,100dvh) - 80px));
   }
   .computer-workspace .desktop-controls:has(.desktop-keyboard-area) {max-height:60%;overflow:auto;overscroll-behavior:contain;}
+}
+
+/* The computer icon folds the window; only the adjacent grip drags it. */
+.computer-dock .computer-dock-actions {padding-left:4px;gap:2px;}
+.computer-dock-toggle {display:grid;place-items:center;width:44px;height:44px;min-height:44px;flex:none;padding:0;border:0;border-radius:12px;color:var(--ink);background:transparent;touch-action:manipulation;}
+.computer-dock-toggle:hover {background:var(--accent-soft);}
+.computer-dock .mobile-window-grip {padding-left:2px;}
+.computer-orb,.computer-orb.is-open {left:max(14px,env(safe-area-inset-left));right:auto;}
+@media(max-width:699px),(pointer:coarse){
+  .app[data-computer-layout="closed"] .composer-area {padding-left:60px;padding-right:0;}
+}
+
+.computer-orb.is-open {background:var(--paper);color:var(--ink);}
+@media(max-width:699px),(pointer:coarse){
+  .app .composer-area {padding-left:60px;padding-right:0;}
+  .app:has(.keyboard-expanded) > .computer-orb {display:none;}
 }

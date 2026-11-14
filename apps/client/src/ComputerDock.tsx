@@ -27,9 +27,12 @@ export function ComputerDock({ visible, desktop, layout, toolsOpen, onTools, onL
     } }}>
     {sidebar && <div className="computer-sidebar-resizer" role="separator" tabIndex={0} aria-orientation="vertical" aria-label={ui('调整侧栏宽度')} aria-valuemin={Math.round(frame.sidebarRange.min)} aria-valuemax={Math.round(frame.sidebarRange.max)} aria-valuenow={Math.round(frame.sidebarWidth)} {...frame.separator}><i /></div>}
     <div className="computer-dock-actions">
+      <button className="computer-dock-toggle" aria-label={ui('收起电脑')} title={ui('收起电脑')} onClick={onClose}>
+        <Icon name="monitor" size={18}/>
+      </button>
       {floating ? <button className="mobile-window-grip" aria-label={ui('拖动电脑浮窗')} {...frame.move}>
-        <Icon name="monitor" size={16}/><span>{ui('电脑')}</span><i aria-hidden="true"/>
-      </button> : <span className="computer-dock-title"><Icon name="monitor" size={16}/>{ui('电脑')}</span>}
+        <span>{ui('电脑')}</span><i aria-hidden="true"/>
+      </button> : <span className="computer-dock-title">{ui('电脑')}</span>}
       <button ref={menuButton} className="computer-menu-trigger" aria-label={ui('电脑菜单')} aria-expanded={menuOpen} aria-controls="computer-dock-menu" onClick={event => { event.currentTarget.focus(); setMenuOpen(!menuOpen); }}>
         <Icon name={menuOpen ? 'close' : 'more'} size={20}/>
       </button>
@@ -49,7 +52,7 @@ export function ComputerDock({ visible, desktop, layout, toolsOpen, onTools, onL
           <Icon name="settings" size={18}/><span>{ui(toolsOpen ? '收起操作工具' : '展开操作工具')}</span>
           <small>{ui('键盘、画质与连接')}</small><Icon name="chevron" size={15}/>
         </button>
-        {floating && !desktop && <button onClick={() => { frame.shrink(); if (toolsOpen) onTools(); dismiss(); }}>
+        {floating && !desktop && <button onClick={() => { const changed = frame.shrink(); if (toolsOpen) onTools(); dismiss(); if (!changed) onClose(); }}>
           <Icon name="expand" size={18}/><span>{ui('缩小窗口')}</span>
         </button>}
         {floating && <button onClick={() => { setResizing(true); if (!desktop && toolsOpen) onTools(); dismiss(); }}>

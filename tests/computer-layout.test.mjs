@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {windowLimits,fitWindow,resizeWindow,fitSidebar} from '../apps/client/src/computer-layout.mjs';
+import {windowLimits,shrinkWindow,fitWindow,resizeWindow,fitSidebar} from '../apps/client/src/computer-layout.mjs';
 
 test('desktop floating windows keep navigation accessible and fit both size bounds',()=>{
  const l=windowLimits({width:1440,height:900},56,true);
@@ -38,4 +38,12 @@ test('invalid or stale saved floating dimensions are constrained before use',()=
  const l=windowLimits({width:390,height:760},48,false);
  const r=fitWindow({left:NaN,top:Infinity,width:NaN,height:-1},l);
  assert.equal(r.left,8);assert.equal(r.top,56);assert.equal(r.width,220);assert.equal(r.height,160);
+});
+
+test('phone shrink keeps changing size until the minimum, then signals fold',()=>{
+ const l=windowLimits({width:390,height:760},48,false);
+ let r=fitWindow({left:12,top:72,width:366,height:350},l),steps=0;
+ for(;;){const next=shrinkWindow(r,l);if(!next)break;assert.ok(next.width<r.width||next.height<r.height);r=next;assert.ok(++steps<10);}
+ assert.equal(r.width,220);assert.equal(r.height,160);assert.ok(steps>=2);
+ assert.equal(shrinkWindow(r,l),null);
 });

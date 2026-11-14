@@ -22,13 +22,18 @@ test('landing uses current raster product captures with accurate demo boundaries
  for(const lang of ['en','zh']){
   const file=path.join(out,lang==='zh'?'zh':'','index.html');
   const html=await readFile(file,'utf8');
-  assert.match(html,/product-sidebar\.jpg/);
-  assert.match(html,/product-sidebar-dark\.jpg/);
-  assert.match(html,/product-mobile\.jpg/);
+  assert.ok(html.includes('product-desktop-'+lang+'.jpg'));
+  assert.ok(html.includes('product-mobile-'+lang+'.jpg'));
+  assert.ok(html.includes('chrome-studio-'+lang+'.jpg'));
+  assert.ok(!html.includes('product-desktop-'+(lang==='en'?'zh':'en')+'.jpg'));
+  assert.doesNotMatch(html,/recorded official Calculator observation|已记录的官方计算器观察/);
   assert.doesNotMatch(html,/remote-demo-(?:en|zh)\.svg/);
   assert.match(html,lang==='zh'?/非 iPhone 实机验收/:/not iPhone device acceptance/);
  }
  const manifest=JSON.parse(await readFile(path.join(out,'assets/product-captures.json'),'utf8'));
+ assert.equal(manifest.files.length,6);
+ assert.equal(manifest.desktop,'Floating Chrome window in both locales.');
+ for(const locale of ['en','zh'])assert.deepEqual(manifest.files.filter(f=>f.locale===locale).map(f=>f.kind).sort(),['chrome-studio','product-desktop','product-mobile']);
  const {createHash}=await import('node:crypto');
  for(const entry of manifest.files){
   const bytes=await readFile(path.join(out,'assets',entry.file));
