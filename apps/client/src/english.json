@@ -426,5 +426,12 @@
   "完成": "Done",
   "拖动调整窗口大小": "Drag to resize window",
   "缩小窗口": "Make window smaller",
-  "发消息…": "Message…"
+  "发消息…": "Message…",
+  "电脑控制": "Computer controls",
+  "电脑控制面板": "Computer control panel",
+  "控制": "Controls",
+  "调整大小": "Resize",
+  "触控板": "Trackpad",
+  "直接点按": "Direct tap",
+  "点击展开或收起，拖动可移动": "Click to open or fold; drag to move"
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 const desktopQuery = "(min-width: 700px) and (hover: hover) and (pointer: fine)";
 
-// Keep keyboard focus with the remote surface until Escape. Both transports
+// Route keys only while the remote surface owns focus. Both transports
 // release held input before relinquishing their server-side control lease.
 export function useDesktopCapture({
   enabled,
@@ -39,7 +39,7 @@ export function useDesktopCapture({
       if (!stopping && !document.hidden) latest.current.focus();
     };
     const focusChanged = (event: FocusEvent) => {
-      if (!latest.current.ownsFocus(event.target)) focusRemote();
+      if (!latest.current.ownsFocus(event.target)) latest.current.releaseInput();
     };
     const stop = () => {
       if (stopping) return;
@@ -54,10 +54,6 @@ export function useDesktopCapture({
         event.preventDefault();
         event.stopImmediatePropagation();
         stop();
-      } else if (event.type === "keydown" && !latest.current.ownsFocus(event.target)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        focusRemote();
       }
     };
     const fullscreenChanged = () => {
@@ -67,7 +63,7 @@ export function useDesktopCapture({
     const release = () => latest.current.releaseInput();
     const visibility = () => {
       if (document.hidden) release();
-      else focusRemote();
+      else if (latest.current.ownsFocus(document.activeElement)) focusRemote();
     };
     const frame = requestAnimationFrame(focusRemote);
     document.addEventListener("keydown", escape, true);
@@ -75,7 +71,7 @@ export function useDesktopCapture({
     document.addEventListener("focusin", focusChanged);
     document.addEventListener("visibilitychange", visibility);
     document.addEventListener("fullscreenchange", fullscreenChanged);
-    window.addEventListener("focus", focusRemote);
+
     window.addEventListener("blur", release);
     return () => {
       cancelAnimationFrame(frame);
@@ -84,7 +80,7 @@ export function useDesktopCapture({
       document.removeEventListener("focusin", focusChanged);
       document.removeEventListener("visibilitychange", visibility);
       document.removeEventListener("fullscreenchange", fullscreenChanged);
-      window.removeEventListener("focus", focusRemote);
+
       window.removeEventListener("blur", release);
       release();
     };

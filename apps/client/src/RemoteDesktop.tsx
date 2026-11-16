@@ -1,3 +1,4 @@
+import { ComputerControls } from "./ComputerControls";
 import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import type RFB from "./desktop-rfb.mjs";
@@ -5,7 +6,6 @@ import { retryDelay } from "./connection.mjs";
 import { useDesktopCapture } from "./useDesktopCapture";
 import { RemoteSurface } from "./RemoteSurface";
 import { flushSync } from "react-dom";
-import { StreamStatus } from "./StreamStatus";
 import { Icon } from "./Icon";
 type Props = {
   post: (path: string, data?: object, signal?: AbortSignal) => Promise<any>;
@@ -426,7 +426,7 @@ export function RemoteDesktop({
   }, [canInput, visible]);
   const content = (
     <>
-      <div className="desktop-toolbar">
+      <ComputerControls><div className="desktop-toolbar">
         <div>
           <span className="eyebrow">{ui("你的 MAC")}</span>
           <strong>{ui("我的 Mac")}</strong>
@@ -443,76 +443,29 @@ export function RemoteDesktop({
           </span>
         </div>
         <div>
-          <button
-            aria-label={ui("全屏")}
-            onClick={() =>
-              (embedded ? inlineSurface.current : surface.current)
-                ?.requestFullscreen?.()
-                .catch(() =>
-                  setError(
-                    ui("当前浏览器不支持全屏，请使用横屏或隐藏地址栏。"),
-                  ),
-                )
-            }
-          >
-            <Icon name="expand" size={18} />
-            <span>{ui("全屏")}</span>
-          </button>
-          <details className="desktop-menu">
-            <summary aria-label={ui("电脑选项")}>
-              <Icon name="settings" size={18} />
-            </summary>
-            <div>
-              <label>
-                {ui("画质与流畅度")}
-                <select aria-label={ui("串流模式")} value={streamMode}
-                  onChange={e => setStreamMode(e.target.value as "auto" | "high" | "smooth")}>
-                  <option value="auto">{ui("自动适应网络")}</option>
-                  <option value="high">{ui("高清优先")}</option>
-                  <option value="smooth">{ui("连接优先")}</option>
-                </select>
-              </label>
-              <small>{ui(streamMode === "high" ? "保持高清；弱网时可能更慢。" : streamMode === "smooth" ? "降低画质与帧率，优先保持响应。" : "网络变慢立即降级，稳定后逐步恢复。")}</small>
-              <label>
-                {ui("手机操作")}
-                <select
-                  aria-label={ui("手机操作方式")}
-                  value={inputMode}
-                  onChange={(e) =>
-                    setInputMode(e.target.value as "trackpad" | "direct")
-                  }
-                >
-                  <option value="trackpad">{ui("触控板：滑动移光标")}</option>
-                  <option value="direct">{ui("直接点按目标")}</option>
-                </select>
-              </label>
-              <small>
-                {ui(
-                  "轻点单击，连点双击；连点后按住可拖拽。双指缩放或移动画面。",
-                )}
-              </small>
+          <div className="desktop-settings">
+            <span className="control-label">{ui("画质与流畅度")}</span>
+            <div className="control-segments" role="group" aria-label={ui("串流模式")}>
+              {(["auto","high","smooth"] as const).map(mode=><button key={mode} aria-pressed={streamMode===mode} onClick={()=>setStreamMode(mode)}>
+                {ui(mode==="auto"?"自动":mode==="high"?"高清优先":"连接优先")}
+              </button>)}
+            </div>
+            {!capture.desktop&&<><span className="control-label">{ui("手机操作")}</span>
+              <div className="control-segments" role="group" aria-label={ui("手机操作方式")}>
+                <button aria-pressed={inputMode==="trackpad"} onClick={()=>setInputMode("trackpad")}>{ui("触控板")}</button>
+                <button aria-pressed={inputMode==="direct"} onClick={()=>setInputMode("direct")}>{ui("直接点按")}</button>
+              </div></>}
               {savedCredentials && <button onClick={() => {
                 credentialVersion.current++;
                 void postRef.current("desktop/credentials/forget").then(() => {setSavedCredentials(false);skipSaved.current=false;}).catch(e=>setError(e.message));
               }}>{ui("忘记连接凭据")}</button>}
               <button onClick={() => void close()}>{ui("断开连接")}</button>
               <small>{ui("切换对话不会断开或锁屏。")}</small>
-            </div>
-          </details>
+          </div>
         </div>
       </div>
-      {stage === "live" && controlsVisible && <StreamStatus
-        label={unstable ? ui("连接不稳定") : quality === 0 ? ui("低带宽")
-          : quality === 2 ? ui("高清画质") : ui("自动画质")}
-        warning={unstable}
-      >
-        <div className="stream-mode-shortcuts" role="group" aria-label={ui("快速切换画质")}>
-          {(["auto", "high", "smooth"] as const).map(mode => <button key={mode}
-            aria-pressed={streamMode === mode} onClick={() => setStreamMode(mode)}>
-            {ui(mode === "auto" ? "自动" : mode === "high" ? "高清优先" : "连接优先")}
-          </button>)}
-        </div>
-      </StreamStatus>}
+      {stage === "live" && <p className="desktop-status" role="status">{unstable ? ui("连接不稳定") : quality === 0 ? ui("低带宽") : quality === 2 ? ui("高清画质") : ui("自动画质")}</p>}
+      </ComputerControls>
       <p className="desktop-privacy">
         {capture.desktop
           ? canInput ? ui("鼠标和键盘已接管 · Esc 退出") : ui("点击接管后，鼠标和键盘将用于操作 Mac")
@@ -656,7 +609,7 @@ export function RemoteDesktop({
         </p>
       )}
       {stage === "live" && (
-        <div className="desktop-controls" hidden={!controlsVisible}>
+        <ComputerControls><div className="desktop-controls" hidden={!controlsVisible}>
           <div className="desktop-touch-primary">
             <span>
               <span className="status-dot" />
@@ -752,7 +705,7 @@ export function RemoteDesktop({
               </div>
             </div>
           )}
-        </div>
+        </div></ComputerControls>
       )}
     </>
   );

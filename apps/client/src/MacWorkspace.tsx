@@ -1,3 +1,4 @@
+import { ComputerControls } from "./ComputerControls";
 import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { InteractiveImage } from "./InteractiveImage";
@@ -41,6 +42,7 @@ type Approval = {
 };
 type Props = {
   toolsOpen: boolean;
+  onTools?: () => void;
   fullAccess?: boolean;
   lease: Lease;
   stream?: StreamState;
@@ -66,6 +68,7 @@ const actionLabel = (args: Approval["args"]) =>
       : ui("按 {0} 键", args.key || "");
 export function MacWorkspace({
   toolsOpen,
+  onTools,
   fullAccess = true,
   lease,
   stream,
@@ -91,7 +94,7 @@ export function MacWorkspace({
   useEffect(() => {
     if (agentSession) {
       setView("app");
-      showSettings(false);
+
     }
   }, [agentSession]);
   const desktopHandoff = useRef<() => Promise<void>>(async () => {});
@@ -132,7 +135,6 @@ export function MacWorkspace({
     [pending, setPending] = useState(""),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0),
-    [settings, showSettings] = useState(!lease.app),
     [windows, setWindows] = useState<{ id: number; title: string }[]>([]),
     [windowId, setWindowId] = useState<number | undefined>(),
     [windowRefresh, refreshWindows] = useState(0);
@@ -233,7 +235,7 @@ export function MacWorkspace({
       : undefined;
   return (
     <div className={"computer-workspace" + (toolsOpen ? " tools-open" : "")}>
-      <div
+      <ComputerControls><div
         className="computer-mode-bar"
         role="group"
         aria-label={ui("电脑共享范围")}
@@ -254,7 +256,7 @@ export function MacWorkspace({
           <Icon name="monitor" size={17} />
           {ui("单个 App")}
         </button>
-      </div>
+      </div></ComputerControls>
       <section
         className="computer desktop-primary"
         style={{ display: view === "desktop" ? "flex" : "none" }}
@@ -275,7 +277,7 @@ export function MacWorkspace({
       </section>
       {view === "app" && (
         <section className="computer" aria-label={ui("Codex 应用连接设置")}>
-          <div className="workspace-top">
+          <ComputerControls><div className="workspace-top">
             <div className="workspace-title">
               <span className={"stream-dot " + (live ? "live" : "")} />
               <strong>{belongs ? appName : ui("你的 Mac")}</strong>
@@ -292,15 +294,6 @@ export function MacWorkspace({
               </span>
             </div>
             <div>
-              <button
-                className="icon-button"
-                onClick={() => showSettings(!settings)}
-                aria-expanded={settings}
-                aria-label={ui("应用与权限")}
-                title={ui("应用与权限")}
-              >
-                <Icon name="settings" size={18} />
-              </button>
               {belongs &&
                 lease.owner === "human" &&
                 lease.humanClientId === clientId && (
@@ -322,7 +315,7 @@ export function MacWorkspace({
                           expectedEpoch: lease.epoch,
                         }),
                       );
-                      showSettings(true);
+
                     })
                   }
                 >
@@ -332,7 +325,7 @@ export function MacWorkspace({
             </div>
           </div>
 
-          {settings && (toolsOpen || !belongs) && (
+          {(toolsOpen || !belongs) && (
             <div className="mac-setup">
               <div className="setup-heading">
                 <strong>{ui("连接本机应用")}</strong>
@@ -381,7 +374,7 @@ export function MacWorkspace({
                         }),
                       );
                       setRetry((n) => n + 1);
-                      showSettings(false);
+
                     })
                   }
                 >
@@ -409,7 +402,7 @@ export function MacWorkspace({
                   ))}
                 </select>
               )}
-              {health && (
+              {health && lease.captureSource !== "official" && (
                 <div className="permission-status">
                   <span>
                     {ui("屏幕录制")}
@@ -445,6 +438,7 @@ export function MacWorkspace({
               </p>
             </div>
           )}
+          </ComputerControls>
           {error && (
             <div className="workspace-error" role="alert">
               {error}
@@ -537,7 +531,7 @@ export function MacWorkspace({
                     {ui("切回对应对话")}
                   </button>
                 )}
-                <button className="primary" onClick={() => showSettings(true)}>
+                <button className="primary" onClick={onTools}>
                   {ui("选择应用")}
                 </button>
               </div>
@@ -576,7 +570,7 @@ export function MacWorkspace({
                 </div>
               </div>
             ))}
-          {belongs && settings && !fullAccess && (
+          {belongs && toolsOpen && !fullAccess && (
             <div className="confirmation-mode">
               <label htmlFor="operation-mode">{ui("操作确认")}</label>
               <select
