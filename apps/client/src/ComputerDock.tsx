@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { t as ui } from './i18n';
 import { useFloatingComputer } from './useFloatingComputer';
-import { ComputerControlsHost } from './ComputerControls';
+import { ComputerControlsHost, ComputerTakeoverHost } from './ComputerControls';
 
 type Layout='floating'|'sidebar'|'full';
 type Props={visible:boolean;desktop:boolean;layout:Layout;toolsOpen:boolean;onTools:()=>void;
@@ -10,6 +10,7 @@ type Props={visible:boolean;desktop:boolean;layout:Layout;toolsOpen:boolean;onTo
 export function ComputerDock({visible,desktop,layout,toolsOpen,onTools,onLayout,onClose,children}:Props){
   const host=useRef<HTMLElement>(null);
   const [controlsHost,setControlsHost]=useState<HTMLDivElement|null>(null);
+  const [takeoverHost,setTakeoverHost]=useState<HTMLDivElement|null>(null);
   const floating=visible&&layout==='floating',sidebar=visible&&layout==='sidebar';
   const frame=useFloatingComputer(floating,host,desktop,sidebar);
   return <aside ref={host} className={'computer-dock '+(!visible?'is-hidden ':'')+(floating?desktop?'is-desktop-floating':'is-mobile-floating':'')+(toolsOpen?' controls-open':'')}
@@ -23,14 +24,15 @@ export function ComputerDock({visible,desktop,layout,toolsOpen,onTools,onLayout,
         <Icon name="monitor" size={17}/><span>{ui('电脑')}</span>
         {floating&&<span className="window-drag-dots" aria-hidden="true">⠿</span>}
       </div>
+      <div className="computer-takeover-slot" ref={setTakeoverHost} />
       <button className="computer-controls-toggle" aria-label={ui('电脑控制')} aria-expanded={toolsOpen}
         aria-controls="computer-controls-panel" onClick={onTools}><Icon name="settings" size={17}/><span>{ui('控制')}</span></button>
       <button className="computer-minimize" aria-label={ui('收起电脑')} title={ui('收起电脑')} onClick={onClose}><Icon name="minus" size={19}/></button>
     </div>
     <div className="computer-dock-body">
-      <ComputerControlsHost value={controlsHost}>
+      <ComputerControlsHost value={controlsHost}><ComputerTakeoverHost value={takeoverHost}>
         <div className="desk-host">{children}</div>
-      </ComputerControlsHost>
+      </ComputerTakeoverHost></ComputerControlsHost>
       <div id="computer-controls-panel" className="computer-controls-panel" ref={setControlsHost} hidden={!toolsOpen} aria-label={ui('电脑控制面板')}>
         <div className="computer-layout-controls">
           <span className="control-label">{ui('显示方式')}</span>

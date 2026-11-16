@@ -433,5 +433,14 @@
   "调整大小": "Resize",
   "触控板": "Trackpad",
   "直接点按": "Direct tap",
-  "点击展开或收起，拖动可移动": "Click to open or fold; drag to move"
+  "点击展开或收起，拖动可移动": "Click to open or fold; drag to move",
+  "已恢复，记录已更新": "Reconnected · Conversation up to date",
+  "正在连接对话…": "Connecting to your conversation…",
+  "当前离线，等待网络恢复": "Offline · Waiting for your network",
+  "正在重连并补齐记录…": "Reconnecting and catching up…",
+  "已提交的任务不会因网页断线被取消。恢复连接后自动获取最新进度，无需重复发送。": "Submitted tasks are not cancelled when this page disconnects. We’ll catch up when you reconnect. No need to resend.",
+  "立即重试": "Retry now",
+  "等待恢复同步": "Waiting to reconnect",
+  "等待获取最新进度": "Waiting for the latest progress",
+  "接管": "Take control"
 }

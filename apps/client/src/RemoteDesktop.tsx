@@ -1,4 +1,4 @@
-import { ComputerControls } from "./ComputerControls";
+import { ComputerControls, ComputerTakeover } from "./ComputerControls";
 import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import type RFB from "./desktop-rfb.mjs";
@@ -608,6 +608,14 @@ export function RemoteDesktop({
           {ui("正在等待系统画面…")}
         </p>
       )}
+      {visible && stage === "live" && <ComputerTakeover>
+        <button className={"computer-takeover-button" + (!canInput ? " primary" : "")} disabled={switching}
+          aria-pressed={canInput} aria-label={ui(canInput ? "退出接管" : "接管鼠标和键盘")}
+          title={ui(canInput ? "鼠标和键盘已接管 · Esc 退出" : "接管鼠标和键盘")}
+          onClick={() => void setControl(canInput ? "view" : "human").catch(() => {})}>
+          {ui(switching ? "正在接手…" : canInput ? "退出接管" : "接管")}
+        </button>
+      </ComputerTakeover>}
       {stage === "live" && (
         <ComputerControls><div className="desktop-controls" hidden={!controlsVisible}>
           <div className="desktop-touch-primary">
@@ -629,19 +637,7 @@ export function RemoteDesktop({
               <Icon name="expand" size={17} />
               {ui("缩放")}
             </button>
-            {controller === "view" || (capture.desktop && !capture.captured) ? (
-              <button
-                className="primary"
-                disabled={switching}
-                onClick={() => void setControl("human").catch(() => {})}
-              >
-                {switching ? ui("正在接手…") : capture.desktop ? ui("接管鼠标和键盘") : ui("接手操作")}
-              </button>
-            ) : capture.desktop ? (
-              <button disabled={switching} onClick={() => void setControl("view").catch(() => {})}>
-                {ui("退出接管")} <kbd>Esc</kbd>
-              </button>
-            ) : (
+            {!capture.desktop && controller === "human" && (
               <button
                 className="primary"
                 disabled={switching}

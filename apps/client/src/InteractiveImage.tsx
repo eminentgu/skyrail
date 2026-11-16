@@ -1,4 +1,4 @@
-import { ComputerControls } from "./ComputerControls";
+import { ComputerControls, ComputerTakeover } from "./ComputerControls";
 import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -222,6 +222,16 @@ export function InteractiveImage({
           draggable={false}
         />
       </RemoteSurface>
+      {visible && <ComputerTakeover>
+        <button className={"computer-takeover-button" + (!enabled ? " primary" : "")}
+          disabled={!video.ready || video.waiting}
+          aria-pressed={enabled} aria-label={ui(enabled ? "退出接管" : "接管鼠标和键盘")}
+          title={ui(enabled ? "鼠标和键盘已接管 · Esc 退出" : "接管鼠标和键盘")}
+          onClick={() => {
+            if (enabled) releaseControl?.();
+            else {capture.capture();if (!granted) takeControl?.();}
+          }}>{ui(enabled ? "退出接管" : "接管")}</button>
+      </ComputerTakeover>}
       {capture.desktop&&remoteInput}
       <ComputerControls>{controlsVisible && <p className="desktop-status" role="status">
         {video.paused ? ui("画面已暂停") : video.waiting ? ui("正在恢复画面…") : !video.ready ? ui("等待画面…") : ui("自适应画质")}
@@ -234,16 +244,7 @@ export function InteractiveImage({
         <button aria-label={ui("缩放应用画面")} onClick={() => zoom.current()}>
           <Icon name="expand" size={17} />
         </button>
-        {!enabled ? (
-          <button className="primary" onClick={() => {
-            capture.capture();
-            if (!granted) takeControl?.();
-          }}>
-            {capture.desktop ? ui("接管鼠标和键盘") : ui("接手操作")}
-          </button>
-        ) : capture.desktop ? (
-          <button onClick={releaseControl}>{ui("退出接管")} <kbd>Esc</kbd></button>
-        ) : (
+        {!capture.desktop && enabled && (
           <button
             className="primary"
             aria-pressed={focused}

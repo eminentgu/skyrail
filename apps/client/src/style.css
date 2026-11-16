@@ -4061,3 +4061,27 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
   .computer-controls-panel .control-segments > button {min-height:40px;}
   .computer-controls-panel .control-actions > button {min-height:40px;}
 }
+
+/* Conversation recovery is in-flow and never covers the computer viewer. */
+.chat-connection-status {display:flex;align-items:flex-start;gap:9px;flex:none;margin:0 0 10px;padding:10px 12px;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:12px;line-height:1.5;color:var(--muted);}
+.chat-connection-status > svg {flex:none;margin-top:2px;}
+.chat-connection-status > div {flex:1;min-width:0;}
+.chat-connection-status strong {font-size:12px;font-weight:500;color:var(--ink);}
+.chat-connection-status p {margin:3px 0 0;overflow-wrap:anywhere;}
+.chat-connection-status button {flex:none;min-height:44px;padding:4px 8px;font-size:12px;}
+.chat-connection-status.is-restored {align-items:center;color:var(--success);padding-block:8px;}
+@media(max-width:699px),(pointer:coarse){
+  .chat-connection-status {font-size:11px;padding:8px 10px;gap:7px;}
+  .chat-connection-status strong {font-size:12px;}
+}
+.computer-takeover-slot {display:flex;align-items:center;flex:none;}
+.computer-takeover-button {min-height:36px;padding:0 10px;border-radius:10px;font-size:12px;white-space:nowrap;}
+.computer-takeover-button[aria-pressed="true"] {background:var(--accent-soft);color:var(--ink);}
+.computer-dock {container-type:inline-size;}
+@container(max-width:320px){
+  .computer-window-title > span,.computer-controls-toggle > span {display:none;}
+  .computer-window-title {padding-inline:6px;gap:0;}
+  .computer-controls-toggle {width:36px;justify-content:center;padding:0;}
+  .computer-takeover-button {font-size:11px;padding-inline:8px;}
+}

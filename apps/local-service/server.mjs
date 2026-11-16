@@ -256,7 +256,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET' && url.pathname==='/v1/events'){
  if(!req.headers.cookie?.split('; ').includes(`skyrail=${token}`))return json(res,401,{message:'需要连接会话'});
- res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive'});clients.add(res);const first=JSON.stringify(view());eventViews.set(res,{scope,last:first});res.write('data: '+first+'\n\n');req.on('close',()=>clients.delete(res));return;
+ res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive','Cache-Control':'no-cache, no-transform','X-Accel-Buffering':'no'});clients.add(res);const first=JSON.stringify(view());eventViews.set(res,{scope,last:first});res.write('data: '+first+'\n\n');req.on('close',()=>clients.delete(res));return;
  }
  if (url.pathname === '/v1/history' && req.method === 'GET') {
   if (!req.headers.cookie?.split('; ').includes(`skyrail=${token}`)) return json(res,401,{message:'需要连接会话'});
@@ -427,7 +427,7 @@ const server=http.createServer(async(req,res)=>{
 server.on('upgrade',(req,socket,head)=>{if(new URL(req.url,`http://${host}`).pathname==='/v1/desktop/socket')desktop.upgrade(req,socket,head,{host,token});else if(production||!req.headers['sec-websocket-protocol']?.includes('vite-hmr'))rejectUpgrade(socket)});
 let checkingLock=false;
 const eventsHeartbeat = setInterval(() => {
- for (const client of clients) if (!client.writableNeedDrain) client.write(': keepalive\n\n');
+ for (const client of clients) if (!client.writableNeedDrain) client.write('event: heartbeat\ndata: {}\n\n');
 }, 15000);
 eventsHeartbeat.unref();
 const lockTimer=setInterval(async()=>{
