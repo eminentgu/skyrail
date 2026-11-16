@@ -1,4 +1,4 @@
-import { ComputerControls, ComputerTakeover } from "./ComputerControls";
+import { ComputerControls, ComputerTakeover, ComputerKeyboard } from "./ComputerControls";
 import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import type RFB from "./desktop-rfb.mjs";
@@ -96,12 +96,12 @@ export function RemoteDesktop({
   const canInput = visible && stage === "live" && controller === "human" &&
     !switching && (!capture.desktop || capture.captured);
   useEffect(() => {
-    if (!controlsVisible) {
+    if (!visible) {
       setKeyboard(false);
       typing.current?.blur();
       rfb.current?.releaseInput();
     }
-  }, [controlsVisible]);
+  }, [visible]);
   const erase = () => {
     for (const value of credentials.current)
       for (const key of Object.keys(value)) delete value[key];
@@ -408,7 +408,7 @@ export function RemoteDesktop({
     if (stage !== "live" || controller !== "human" || switching) return;
     for (const character of value) {
       const code = character.codePointAt(0)!;
-      rfb.current?.sendKey(code <= 255 ? code : 0x01000000 | code);
+      rfb.current?.sendKey(character === "\n" ? 0xff0d : code <= 255 ? code : 0x01000000 | code);
     }
   }
   function key(symbol: number, code: string) {
@@ -615,6 +615,13 @@ export function RemoteDesktop({
           onClick={() => void setControl(canInput ? "view" : "human").catch(() => {})}>
           {ui(switching ? "正在接手…" : canInput ? "退出接管" : "接管")}
         </button>
+        {!capture.desktop && <button className="computer-keyboard-toggle"
+          disabled={!canInput} aria-label={ui(keyboard ? "收起键盘" : "输入文字")} title={ui(keyboard ? "收起键盘" : "输入文字")}
+          aria-pressed={keyboard} onClick={() => {
+            flushSync(() => setKeyboard(!keyboard));
+            if (!keyboard) typing.current?.focus({preventScroll:true});
+            else typing.current?.blur();
+          }}><Icon name="keyboard" size={18}/></button>}
       </ComputerTakeover>}
       {stage === "live" && (
         <ComputerControls><div className="desktop-controls" hidden={!controlsVisible}>
@@ -637,23 +644,12 @@ export function RemoteDesktop({
               <Icon name="expand" size={17} />
               {ui("缩放")}
             </button>
-            {!capture.desktop && controller === "human" && (
-              <button
-                className="primary"
-                disabled={switching}
-                aria-pressed={keyboard}
-                onClick={() => {
-                  flushSync(() => setKeyboard(!keyboard));
-                  if (!keyboard) typing.current?.focus({ preventScroll: true });
-                  else typing.current?.blur();
-                }}
-              >
-                <Icon name="keyboard" size={18} />
-                {keyboard ? ui("收起键盘") : ui("输入文字")}
-              </button>
-            )}
+
           </div>
-          {keyboard && controller === "human" && (
+
+        </div></ComputerControls>
+      )}
+      <ComputerKeyboard>{keyboard && controller === "human" && (
             <div className="desktop-keyboard-area">
               <textarea
                 rows={1}
@@ -676,7 +672,7 @@ export function RemoteDesktop({
                   if (!composing.current) sendText(e.currentTarget);
                 }}
                 onKeyDown={(e) => {
-                  if (e.nativeEvent.isComposing) return;
+                  if (e.nativeEvent.isComposing || composing.current) return;
                   if (e.key === "Enter" || e.key === "Backspace") {
                     e.preventDefault();
                     key(e.key === "Enter" ? 0xff0d : 0xff08, e.key);
@@ -700,9 +696,7 @@ export function RemoteDesktop({
                 ))}
               </div>
             </div>
-          )}
-        </div></ComputerControls>
-      )}
+          )}</ComputerKeyboard>
     </>
   );
   return (
