@@ -9,3 +9,9 @@ export function ComputerControls({children}:{children:React.ReactNode}) {
   const content=<div className="computer-control-group">{children}</div>;
   return host?createPortal(content,host):content;
 }
+
+export const ComputerTakeoverHost = createContext<HTMLElement | null>(null);
+export function ComputerTakeover({children}:{children:React.ReactNode}) {
+  const host=useContext(ComputerTakeoverHost);
+  return host ? createPortal(children,host) : <>{children}</>;
+}

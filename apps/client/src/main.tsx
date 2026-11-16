@@ -1,11 +1,11 @@
 import { useDraggableOrb } from "./useDraggableOrb";
 import { ComputerDock } from "./ComputerDock";
-import { retryDelay } from "./connection.mjs";
+import { monitorChatStream, retryDelay } from "./connection.mjs";
 import { getLanguage, setLanguage, t as ui } from "./i18n";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
-import { StreamStatus } from "./StreamStatus";
+import { ChatConnectionStatus } from "./ChatConnectionStatus";
 import { Picture, isPicture } from "./Attachments";
 import { useComposerUploads } from "./useComposerUploads";
 import { SessionConnection } from "./SessionConnection";
@@ -49,6 +49,13 @@ function App() {
   const [language, changeLanguage] = useState(getLanguage);
   const [network, setNetwork] = useState("connecting");
   const reconnect = React.useRef(() => {});
+  const interrupted = React.useRef(false);
+  const [caughtUp, setCaughtUp] = useState(false);
+  useEffect(() => {
+    if (!caughtUp) return;
+    const timer = setTimeout(() => setCaughtUp(false), 6000);
+    return () => clearTimeout(timer);
+  }, [caughtUp]);
   const subscribeThread = React.useRef<(id: string) => void>(() => {});
   const [older, setOlder] = useState<{
     thread: string;
@@ -173,6 +180,7 @@ function App() {
   const syncing = thread?.status === "syncing";
   const running = localRunning || externalRunning || syncing;
   const sourceRef = React.useRef<EventSource | null>(null);
+  const snapshotRevision = React.useRef(0);
   const messagesRef = React.useRef<HTMLDivElement | null>(null);
   const follows = React.useRef(true);
   function selectThread(id: string) {
@@ -191,23 +199,45 @@ function App() {
     let initialized = false;
     let busy = false;
     let attempts = 0;
+    let stopMonitor = () => {};
     let timer: ReturnType<typeof setTimeout>;
     const controller = new AbortController();
     const schedule = () => {
       if (disposed) return;
+      interrupted.current = true;
+      setCaughtUp(false);
+      sourceRef.current?.close();
+      sourceRef.current = null;
+      stopMonitor();
       setNetwork(navigator.onLine ? "recovering" : "offline");
       clearTimeout(timer);
       if (navigator.onLine) timer = setTimeout(attach, retryDelay(attempts++));
     };
     function subscribe(id: string) {
+      stopMonitor();
       sourceRef.current?.close();
       const source = new EventSource(
         "/v1/events?compact=1&threadId=" + encodeURIComponent(id),
       );
       sourceRef.current = source;
+      stopMonitor = monitorChatStream(source, () => {
+        if (!disposed && sourceRef.current === source) schedule();
+      });
       source.onmessage = (event) => {
         if (disposed || sourceRef.current !== source) return;
-        setState(JSON.parse(event.data));
+        try {
+          const snapshot = JSON.parse(event.data);
+          if (!Array.isArray(snapshot.threads)) throw Error("Invalid snapshot");
+          snapshotRevision.current++;
+          setState(snapshot);
+        } catch {
+          schedule();
+          return;
+        }
+        if (interrupted.current) {
+          interrupted.current = false;
+          setCaughtUp(true);
+        }
         attempts = 0;
         setNetwork("online");
       };
@@ -296,21 +326,37 @@ function App() {
       }
     }
     const retry = () => {
+      // A visibility/online event must not close a subscription being attached.
+      if (busy || disposed) return;
       clearTimeout(timer);
       sourceRef.current?.close();
+      sourceRef.current = null;
+      stopMonitor();
+      setNetwork(navigator.onLine ? "recovering" : "offline");
       void attach();
+    };
+    let hiddenAt = 0;
+    const visibility = () => {
+      if (document.hidden) hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 15000) {
+        interrupted.current = true;
+        retry();
+      }
     };
     reconnect.current = retry;
     window.addEventListener("online", retry);
     window.addEventListener("offline", schedule);
+    document.addEventListener("visibilitychange", visibility);
     void attach();
     return () => {
       disposed = true;
       controller.abort();
+      stopMonitor();
       clearTimeout(timer);
       sourceRef.current?.close();
       window.removeEventListener("online", retry);
       window.removeEventListener("offline", schedule);
+      document.removeEventListener("visibilitychange", visibility);
     };
   }, []);
   async function loadEarlier() {
@@ -394,8 +440,7 @@ function App() {
       !selected ||
       !token ||
       state.runtime !== "connected" ||
-      network !== "online" ||
-      (panel && !matchMedia("(min-width:1100px)").matches)
+      network !== "online"
     )
       return;
     let disposed = false;
@@ -403,6 +448,7 @@ function App() {
     const refresh = async () => {
       try {
         if (document.hidden) return;
+        const revision = snapshotRevision.current;
         const r = await fetch("/v1/threads/" + selected + "/sync", {
           method: "POST",
           headers: {
@@ -411,8 +457,12 @@ function App() {
             "X-Skyrail-Thread": selected,
           },
           body: "{}",
+          signal: AbortSignal.timeout(10000),
         });
-        if (r.ok && !disposed) setState(await r.json());
+        if (r.ok) {
+          const snapshot = await r.json();
+          if (!disposed && selectedRef.current === selected && snapshotRevision.current === revision) setState(snapshot);
+        }
       } catch {
       } finally {
         if (!disposed) timer = setTimeout(refresh, 12000);
@@ -423,7 +473,7 @@ function App() {
       disposed = true;
       clearTimeout(timer);
     };
-  }, [selected, token, state.runtime, network, panel]);
+  }, [selected, token, state.runtime, network]);
   async function act(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -583,12 +633,6 @@ function App() {
           </button>
         </div>
       </header>
-      {(network === "offline" || network === "recovering") && (
-        <div className="network-status">
-          <StreamStatus label={network === "offline" ? ui("网络已断开") : ui("正在恢复连接…")}
-            warning retry={network === "recovering" ? () => reconnect.current() : undefined} />
-        </div>
-      )}
       {panel && error && (
         <div className="workspace-connection-error" role="alert">
           <span>{error}</span>
@@ -678,7 +722,7 @@ function App() {
               </div>
             </div>
             <div className="conversation-actions">
-              <span className={"connection " + state.runtime}>
+              <span className={"connection " + (network === "online" ? state.runtime : "disconnected")} title={runtimeLabel} aria-label={runtimeLabel}>
                 <span className="status-dot" />
                 {runtimeLabel}
               </span>
@@ -693,6 +737,7 @@ function App() {
               </button>
             </div>
           </div>
+          <ChatConnectionStatus network={network} caughtUp={caughtUp} retry={() => reconnect.current()} />
           {thread?.codexId && (
             <details className="session-details">
               <summary>
@@ -703,7 +748,9 @@ function App() {
                     : ui("已关联 Codex 会话")}
                 </span>
                 <span className="session-state">
-                  {thread.syncError
+                  {network !== "online"
+                    ? ui("等待恢复同步")
+                    : thread.syncError
                     ? ui("查看详情")
                     : syncing
                       ? ui("同步中")
@@ -904,7 +951,9 @@ function App() {
             {running && (
               <div className="working" role="status">
                 <span className="working-dot" />
-                {syncing
+                {network !== "online"
+                  ? ui("等待获取最新进度")
+                  : syncing
                   ? ui("正在同步会话记录")
                   : externalRunning
                     ? ui("另一端正在执行，记录会自动同步")
