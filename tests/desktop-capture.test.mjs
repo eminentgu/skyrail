@@ -83,14 +83,14 @@ function captureFixture({ desktop = true, enabled = true } = {}) {
   };
 }
 
-test("desktop takeover retains keyboard focus and Escape releases capture before control RPC completes", () => {
+test("desktop takeover allows local focus and Escape releases capture before control RPC completes", () => {
   const fixture = captureFixture();
   assert.equal(fixture.output.captured, true);
   assert.equal(fixture.focusCount, 1);
   const focus = new Event("focusin");
   Object.defineProperty(focus, "target", { value: new EventTarget() });
   fixture.document.dispatchEvent(focus);
-  assert.equal(fixture.focusCount, 2);
+  assert.equal(fixture.focusCount, 1, "chat focus must not be stolen");
   let forwardedEscape = false;
   fixture.document.addEventListener("keydown", () => { forwardedEscape = true; });
   const escape = new Event("keydown", { cancelable: true });
@@ -158,4 +158,17 @@ test("leaving browser fullscreen releases capture even when the browser consumes
   assert.equal(fixture.output.captured, false);
   assert.equal(fixture.exits, 1);
   fixture.unmount();
+});
+
+test("chat typing and shortcuts remain local while a desktop lease is active", () => {
+ const f=captureFixture();const local=new EventTarget();
+ const focus=new Event('focusin');Object.defineProperty(focus,'target',{value:local});f.document.dispatchEvent(focus);
+ const baseline=f.focusCount;let reached=0;f.document.addEventListener('keydown',()=>reached++);
+ for(const key of ['a','Enter','Backspace','Meta']){
+  const event=new Event('keydown',{cancelable:true});Object.defineProperties(event,{key:{value:key},target:{value:local}});
+  f.document.dispatchEvent(event);assert.equal(event.defaultPrevented,false);
+ }
+ assert.equal(reached,4);assert.equal(f.focusCount,baseline);assert.equal(f.output.captured,true);assert.equal(f.exits,0);
+ f.window.dispatchEvent(new Event('focus'));assert.equal(f.focusCount,baseline);
+ f.unmount();
 });

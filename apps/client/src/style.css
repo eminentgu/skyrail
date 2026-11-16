@@ -3999,3 +3999,65 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
   .app .composer-area {padding-left:60px;padding-right:0;}
   .app:has(.keyboard-expanded) > .computer-orb {display:none;}
 }
+
+/* A single flat inspector lives beside the viewer, never over its pixels. */
+.computer-dock-body {display:flex;flex:1 1 0;min-height:0;min-width:0;overflow:hidden;border-radius:0 0 18px 18px;}
+.computer-dock-body > .desk-host {flex:1 1 0;min-width:0;height:auto;border-radius:0;}
+.computer-controls-panel {flex:0 0 256px;width:256px;min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;
+  padding:12px;background:var(--paper);border-left:1px solid var(--line);font-size:12px;}
+.computer-controls-panel[hidden] {display:none;}
+.computer-window-title {display:flex;align-items:center;gap:9px;flex:1;min-width:0;padding:0 8px;min-height:44px;font-size:12px;font-weight:600;}
+.computer-window-title.is-draggable {touch-action:none;cursor:grab;user-select:none;}
+.computer-window-title.is-draggable:active {cursor:grabbing;}
+.window-drag-dots {color:var(--muted);opacity:.5;font-size:18px;margin-left:6px;}
+.computer-controls-toggle {display:flex;align-items:center;gap:6px;min-height:36px;padding:0 9px;font-size:12px;border:0;border-radius:10px;}
+.computer-controls-toggle[aria-expanded="true"] {background:var(--accent-soft);}
+.computer-minimize {display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;border:0;border-radius:10px;}
+.computer-minimize:hover {background:var(--accent-soft);}
+.computer-control-group {padding-top:12px;margin-top:12px;border-top:1px solid var(--line);}
+.control-label {display:block;font-size:10px;color:var(--muted);margin:0 0 6px;font-weight:600;}
+.control-segments {display:flex;gap:3px;background:var(--surface);padding:3px;border-radius:10px;margin-bottom:10px;}
+.control-segments > button {flex:1;min-width:0;min-height:36px;padding:5px 4px;font-size:11px;white-space:nowrap;border-radius:7px;}
+.control-segments > button[aria-pressed="true"] {background:var(--accent-soft);color:var(--ink);}
+.control-actions {display:flex;gap:6px;}
+.control-actions > button {flex:1;min-height:38px;padding:6px;font-size:11px;}
+.computer-controls-panel .computer-window-resizer {width:auto;height:auto;display:flex;gap:6px;}
+.computer-controls-panel .computer-mode-bar {display:flex;position:static;inset:auto;margin:0;padding:3px;width:100%;max-width:none;border:0;align-self:stretch;background:var(--surface);}
+.computer-controls-panel .computer-mode-bar > button {flex:1;min-height:38px;padding:5px;gap:4px;font-size:11px;}
+.computer-controls-panel .workspace-top,.computer-controls-panel .desktop-toolbar {display:block;position:static;inset:auto;padding:0;margin:0;border:0;background:transparent;min-height:0;height:auto;width:auto;}
+.computer-controls-panel .desktop-toolbar > div,.computer-controls-panel .workspace-top > div {display:block;}
+.computer-controls-panel .desktop-toolbar .eyebrow {display:none;}
+.computer-controls-panel .desktop-toolbar strong,.computer-controls-panel .workspace-top strong {display:block;font-size:12px;}
+.computer-controls-panel [role="status"],.computer-controls-panel .stream-badge {display:block;font-size:10px;color:var(--muted);line-height:1.5;margin:5px 0 10px;}
+.computer-controls-panel .desktop-settings {padding-top:10px;}
+.computer-controls-panel .desktop-settings > button {width:100%;justify-content:flex-start;min-height:36px;font-size:11px;}
+.computer-controls-panel .desktop-settings > small,.computer-controls-panel .setup-help {display:none;}
+.computer-controls-panel .desktop-controls,.computer-controls-panel .app-touch-controls {display:block;position:static;inset:auto;width:100%;padding:0;margin:0;border:0;border-radius:0;background:transparent;max-height:none;overflow:visible;}
+.computer-controls-panel .desktop-touch-primary {display:flex;flex-wrap:wrap;gap:5px;}
+.computer-controls-panel .desktop-touch-primary > span,.computer-controls-panel .app-touch-controls > span {display:none;}
+.computer-controls-panel .desktop-touch-primary > button,.computer-controls-panel .app-touch-controls > button {min-height:40px;padding:6px 8px;font-size:11px;}
+.computer-controls-panel .desktop-keyboard-area {display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+.computer-controls-panel .desktop-keyboard,.computer-controls-panel .remote-keyboard.mobile-keyboard-visible {position:static;width:100%;margin:0;min-height:44px;height:44px;max-height:80px;font-size:16px;resize:none;}
+.computer-controls-panel .desktop-special-keys {display:flex;position:static;inset:auto;gap:4px;margin:0;width:100%;}
+.computer-controls-panel .desktop-special-keys > button {flex:1;min-height:36px;padding:4px;font-size:11px;}
+.computer-controls-panel .mac-setup {position:static;inset:auto;padding:0;margin:12px 0 0;border:0;border-radius:0;max-height:none;overflow:visible;}
+.computer-controls-panel .setup-heading {display:flex;align-items:center;gap:6px;}
+.computer-controls-panel .setup-heading strong {flex:1;font-size:11px;}
+.computer-controls-panel .setup-heading button {font-size:10px;min-height:36px;padding:4px;}
+.computer-controls-panel .app-picker {display:flex;flex-direction:column;gap:6px;}
+.computer-controls-panel select {width:100%;min-width:0;min-height:40px;font-size:12px;margin:6px 0;}
+.computer-controls-panel .permission-status {display:flex;flex-wrap:wrap;font-size:10px;gap:8px;}
+.computer-orb {touch-action:none;user-select:none;cursor:grab;}
+.computer-orb:active {cursor:grabbing;}
+.computer-controls-panel:has(.desktop-keyboard-area) > .computer-layout-controls,
+.computer-controls-panel:has(.desktop-keyboard-area) > .computer-control-group:not(:has(.desktop-keyboard-area)),
+.computer-controls-panel:has(.mobile-keyboard-visible) > .computer-layout-controls,
+.computer-controls-panel:has(.mobile-keyboard-visible) > .computer-control-group:not(:has(.mobile-keyboard-visible)) {display:none;}
+@media(max-width:699px),(pointer:coarse){
+  .computer-dock-body {flex-direction:column;}
+  .computer-controls-panel {flex:0 1 auto;order:2;width:100%;max-height:45%;border-left:0;border-top:1px solid var(--line);padding:10px;}
+  .computer-controls-panel:has(.desktop-keyboard-area),.computer-controls-panel:has(.mobile-keyboard-visible) {max-height:60%;}
+  .computer-controls-panel .computer-control-group:first-child {padding-top:0;margin-top:0;border:0;}
+  .computer-controls-panel .control-segments > button {min-height:40px;}
+  .computer-controls-panel .control-actions > button {min-height:40px;}
+}

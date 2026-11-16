@@ -1,5 +1,6 @@
 import React from "react";
 type Name =
+  | "minus"
   | "more"
   | "resize"
   | "image"
@@ -27,6 +28,7 @@ type Name =
   | "trash"
   | "back";
 const paths: Record<Name, React.ReactNode> = {
+  minus: <path d="M5 12h14"/>,
   more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
   resize: <path d="m8 20 12-12M14 20l6-6"/>,
   sidebar: <><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M14 3v18"/></>,

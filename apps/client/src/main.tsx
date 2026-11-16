@@ -1,3 +1,4 @@
+import { useDraggableOrb } from "./useDraggableOrb";
 import { ComputerDock } from "./ComputerDock";
 import { retryDelay } from "./connection.mjs";
 import { getLanguage, setLanguage, t as ui } from "./i18n";
@@ -80,6 +81,8 @@ function App() {
     [guide, showGuide] = useState(false),
     [deletedId, setDeletedId] = useState(""),
     [copied, setCopied] = useState(false);
+  const orbRef = React.useRef<HTMLButtonElement>(null);
+  const orb = useDraggableOrb(orbRef, () => {showHistory(false);open(!panel);});
   const [filesOpen, showFiles] = useState(false),
     [attachments, setAttachments] = useState<Attachment[]>([]);
   const [desktopLayout, setDesktopLayout] = useState(() =>
@@ -1120,7 +1123,6 @@ function App() {
           layout={floating ? "floating" : desktopLayout && !full ? "sidebar" : "full"}
           toolsOpen={computerToolsOpen} onTools={() => setComputerToolsOpen(!computerToolsOpen)}
           onClose={() => open(false)} onLayout={layout => {
-            setComputerToolsOpen(false);
             if (desktopLayout) {
               if (layout !== "full") setDesktopComputer(layout);
               setFull(layout === "full");
@@ -1129,6 +1131,7 @@ function App() {
           {token ? (
             <MacWorkspace
               toolsOpen={computerToolsOpen}
+              onTools={() => setComputerToolsOpen(true)}
               running={running}
               lease={state.lease}
               stream={state.stream}
@@ -1174,10 +1177,10 @@ function App() {
           }}
         />
       )}
-      <button className={"computer-orb " + (panel ? "is-open" : "") + (hasComputer ? " is-connected" : "")}
+      <button ref={orbRef} {...orb} title={ui("点击展开或收起，拖动可移动")} className={"computer-orb " + (panel ? "is-open" : "") + (hasComputer ? " is-connected" : "")}
         aria-label={panel ? ui("收起电脑") : ui("打开电脑")}
         aria-expanded={panel}
-        onClick={() => { showHistory(false); open(!panel); }}>
+        >
         <Icon name="monitor" size={22} />
         {hasComputer && <span className="orb-connected" aria-hidden="true" />}
         {!!approvalCount && <span className="orb-count">{approvalCount}</span>}
