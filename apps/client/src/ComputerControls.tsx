@@ -15,3 +15,9 @@ export function ComputerTakeover({children}:{children:React.ReactNode}) {
   const host=useContext(ComputerTakeoverHost);
   return host ? createPortal(children,host) : <>{children}</>;
 }
+
+export const ComputerKeyboardHost = createContext<HTMLElement | null>(null);
+export function ComputerKeyboard({children}:{children:React.ReactNode}) {
+  const host=useContext(ComputerKeyboardHost);
+  return host ? createPortal(children,host) : <>{children}</>;
+}

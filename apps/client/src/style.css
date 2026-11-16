@@ -4128,3 +4128,22 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
   .chat .messages {padding-inline:0;}
   .chat > .conversation-heading {padding-inline:0;}
 }
+
+/* Phone typing is a direct title-bar action, independent of the inspector. */
+.computer-keyboard-toggle {display:grid;place-items:center;width:44px;min-width:44px;height:44px;padding:0;border:0;border-radius:10px;}
+.computer-keyboard-toggle[aria-pressed="true"] {background:var(--accent-soft);}
+.computer-keyboard-host:empty {display:none;}
+.computer-keyboard-host {flex:0 1 auto;min-height:0;max-height:45%;overflow:auto;overscroll-behavior:contain;
+  padding:8px;background:var(--paper);border-top:1px solid var(--line);}
+.computer-keyboard-host .desktop-keyboard-area,.computer-keyboard-host .app-keyboard-area {display:flex;flex-direction:column;gap:6px;}
+.computer-keyboard-host .desktop-keyboard,.computer-keyboard-host .remote-keyboard.mobile-keyboard-visible {
+  display:block;position:static;inset:auto;width:100%;height:44px;min-height:44px;max-height:80px;margin:0;padding:8px 10px;
+  font-size:16px;line-height:1.5;resize:none;border:1px solid var(--line);border-radius:10px;clip-path:none;opacity:1;}
+.computer-keyboard-host .desktop-special-keys {display:flex;position:static;inset:auto;width:100%;gap:4px;margin:0;}
+.computer-keyboard-host .desktop-special-keys button {flex:1;min-height:44px;padding:4px;font-size:12px;}
+.computer-dock:has(.computer-keyboard-host > *) .computer-controls-panel {display:none;}
+@container(max-width:280px){
+  .computer-dock:has(.computer-keyboard-toggle) .computer-window-title {display:none;}
+  .computer-takeover-slot {flex:1;justify-content:flex-start;}
+}
+.computer-dock:has(.computer-keyboard-host > *) .computer-controls-toggle {display:none;}

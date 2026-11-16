@@ -1,4 +1,4 @@
-import { ComputerControls, ComputerTakeover } from "./ComputerControls";
+import { ComputerControls, ComputerTakeover, ComputerKeyboard } from "./ComputerControls";
 import { t as ui } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -63,12 +63,12 @@ export function InteractiveImage({
     );
   const pendingMove = useRef<{ input: SurfaceInput } | null>(null);
   useEffect(() => {
-    if (!controlsVisible) {
+    if (!visible || !controlEnabled) {
       keyboard.current?.blur();
       setFocused(false);
       release();
     }
-  }, [controlsVisible]);
+  }, [visible, controlEnabled]);
   function send(input: object) {
     const expected = { epoch, threadId },
       version = generation.current;
@@ -231,6 +231,13 @@ export function InteractiveImage({
             if (enabled) releaseControl?.();
             else {capture.capture();if (!granted) takeControl?.();}
           }}>{ui(enabled ? "退出接管" : "接管")}</button>
+        {!capture.desktop && <button className="computer-keyboard-toggle" disabled={!enabled}
+          aria-label={ui(focused ? "收起键盘" : "输入文字")} title={ui(focused ? "收起键盘" : "输入文字")}
+          aria-pressed={focused} onClick={() => {
+            flushSync(() => setFocused(!focused));
+            if (!focused) keyboard.current?.focus({preventScroll:true});
+            else keyboard.current?.blur();
+          }}><Icon name="keyboard" size={18}/></button>}
       </ComputerTakeover>}
       {capture.desktop&&remoteInput}
       <ComputerControls>{controlsVisible && <p className="desktop-status" role="status">
@@ -244,32 +251,20 @@ export function InteractiveImage({
         <button aria-label={ui("缩放应用画面")} onClick={() => zoom.current()}>
           <Icon name="expand" size={17} />
         </button>
-        {!capture.desktop && enabled && (
-          <button
-            className="primary"
-            aria-pressed={focused}
-            onClick={() => {
-              flushSync(() => setFocused(!focused));
-              if (!focused) keyboard.current?.focus({ preventScroll: true });
-              else keyboard.current?.blur();
-            }}
-          >
-            <Icon name="keyboard" size={18} />
-            {focused ? ui("收起键盘") : ui("输入文字")}
-          </button>
-        )}
         {!capture.desktop&&<div className="control-segments" role="group" aria-label={ui("应用操作方式")}>
           <button aria-pressed={mode==="trackpad"} onClick={()=>{setMode("trackpad");localStorage.setItem("skyrail.input","trackpad");}}>{ui("触控板")}</button>
           <button aria-pressed={mode==="direct"} onClick={()=>{setMode("direct");localStorage.setItem("skyrail.input","direct");}}>{ui("直接点按")}</button>
         </div>}
       </div>
-      {!capture.desktop&&remoteInput}
+      </ComputerControls>
+      <ComputerKeyboard>{!capture.desktop && focused && <div className="app-keyboard-area">{remoteInput}
       {focused && (
         <div className="desktop-special-keys">
           {[
             ["Tab", "Tab"],
             ["Enter", ui("回车")],
             ["Backspace", ui("退格")],
+            ["Escape", "Esc"],
           ].map(([code, label]) => (
             <button
               key={code}
@@ -280,7 +275,7 @@ export function InteractiveImage({
             </button>
           ))}
         </div>
-      )}</ComputerControls>
+      )}</div>}</ComputerKeyboard>
     </div>
   );
 }
