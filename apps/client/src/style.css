@@ -4146,3 +4146,4 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
   .computer-dock:has(.computer-keyboard-toggle) .computer-window-title {display:none;}
   .computer-takeover-slot {flex:1;justify-content:flex-start;}
 }
+.computer-dock:has(.computer-keyboard-host > *) .computer-controls-toggle {display:none;}
