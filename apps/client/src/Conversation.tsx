@@ -39,7 +39,8 @@ function CopyReply({ text }: { text: string }) {
   return (
     <button
       className="message-copy"
-      aria-label={ui("复制 Codex 回复")}
+      aria-label={state || ui("复制 Codex 回复")}
+      title={state || ui("复制回复")}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -51,7 +52,7 @@ function CopyReply({ text }: { text: string }) {
       }}
     >
       <Icon name={state === ui("已复制") ? "check" : "copy"} size={14} />
-      {state || ui("复制回复")}
+      <span className="message-copy-label">{state || ui("复制回复")}</span>
     </button>
   );
 }
@@ -238,11 +239,12 @@ export function Conversation({
           <article className={"message " + m.role} key={m.id}>
             <div className="message-meta">
               <span aria-hidden="true" className={"avatar " + m.role}>
-                {m.role === "user" ? "●" : <Icon name="code" size={15} />}
+                <Icon name={m.role === "user" ? "chat" : "code"} size={15} />
               </span>
               <span>{m.role === "user" ? ui("你") : "Codex"}</span>
-              <time>{time}</time>
+              <time dateTime={m.createdAt}>{time}</time>
               {m.pending && <small>{ui("发送结果待确认")}</small>}
+              {m.role === "assistant" && m.text && <CopyReply text={m.text} />}
             </div>
             <div className="message-body">
               <Markdown
@@ -315,7 +317,6 @@ export function Conversation({
             {!!m.attachments?.length && (
               <MessageAttachments files={m.attachments} />
             )}
-            {m.role === "assistant" && m.text && <CopyReply text={m.text} />}
           </article>
         );
       })}
