@@ -1,5 +1,5 @@
 import {readClaudeHistory,mergeClaudeHistory} from '../../packages/claude/history.mjs';
-import {runClaude,claudeModel,claudeInput,historyFor,historyPrefix} from '../../packages/claude/index.mjs';
+import {runClaude,claudeModel,claudeInput,historyFor,stageHistoryChanges,historyPrefix} from '../../packages/claude/index.mjs';
 import {messageWindow} from '../../packages/codex/message-window.mjs';
 import http from 'node:http';
 import {attachmentInputs,imageType} from '../../packages/codex/attachments.mjs';
@@ -73,15 +73,24 @@ const writers=new SessionWriters({create:thread=>{
  if(mac.state.threadId===thread.id&&mac.state.owner==='agent'&&!mac.state.transitioning)void mac.control(mac.state.epoch,'none').catch(()=>{});
  void save();publish();
 }});
-async function syncNative(thread){
+async function syncNative(thread,incremental=false){
  if(!thread.codexId||['running','submitting','syncing'].includes(thread.status))return;
  if(syncing.has(thread.id))return syncing.get(thread.id);
  const work=(async()=>{
   try{
-   await historyCodex.connect();const native=await readSession(historyCodex,thread.codexId);
+   await historyCodex.connect();
+   const checkpoint=thread.historyCheckpoint;
+   const priorIds=JSON.stringify(thread.previousCodexIds||[]);
+   const anchor=incremental && checkpoint?.session===thread.codexId && checkpoint.priorIds===priorIds ? checkpoint.turn : null;
+   const cached=(thread.messages||[]).filter(m=>m.source==='codex' && !m.pending);
+   const boundary=anchor ? cached.findIndex(m=>m.turnId===anchor) : -1;
+   const native=await readSession(historyCodex,thread.codexId,boundary>=0 ? anchor : null);
    const previousMessages=[];
-   for(const id of new Set(thread.previousCodexIds||[]))if(id!==thread.codexId)previousMessages.push(...messagesFromTurns((await readSession(historyCodex,id)).turns));
-   const changed=applySession(thread,native,{previousMessages});if(changed){await save();publish()}return native;
+   if(native.matchedAnchor)previousMessages.push(...cached.slice(0,boundary));
+   else for(const id of new Set(thread.previousCodexIds||[]))if(id!==thread.codexId)previousMessages.push(...messagesFromTurns((await readSession(historyCodex,id)).turns));
+   const changed=applySession(thread,native,{previousMessages});
+   thread.historyCheckpoint={session:thread.codexId,priorIds,turn:native.turns.at(-1)?.id};
+   if(changed){await save();publish()}return native;
   }catch(e){thread.syncError=e.message;publish();throw e}
  })().finally(()=>syncing.delete(thread.id));syncing.set(thread.id,work);return work;
 }
@@ -120,7 +129,7 @@ mac.externalControl=()=>desktop.active;
 mac.on('change',()=>publish());
 const serviceId=randomUUID();
 const snapshot=(scope = null)=>({service:{id:serviceId,protocol:12,computerBackend},permissions,claude:{configured:!!process.env.ARK_API_KEY,model:claudeModel()},desktop:desktop.status(),threads:threads.filter(t=>!t.deletedAt).map(t=>{
- const {sharedIds,deliveredIds,...visible}=t;
+ const {sharedIds,deliveredIds,sharedVersions,claudeHistoryCursor,historyCheckpoint,...visible}=t;
  if (scope === null) return visible;
  const {messages, retryDraft, ...summary} = visible;
  return t.id === scope ? {...summary, retryDraft, ...messageWindow(messages)} : {...summary, messages:[]};
@@ -422,19 +431,19 @@ const server=http.createServer(async(req,res)=>{
  if(['harness','share-history'].includes(match[2])){
   const occupied=()=>['running','submitting','syncing','external_running'].includes(t.status);
   if(syncing.has(t.id))await syncing.get(t.id);
-  if(match[2]==='share-history')await syncNative(t);
+  if(match[2]==='share-history')await syncNative(t,true);
   if(occupied())return json(res,409,{message:'请等待当前任务结束'});
   if(match[2]==='harness'){
    if(!['claude','codex'].includes(body.harness))return json(res,400,{message:'无效后端'});
    t.harness=body.harness;
   }else{
    if(t.claudeId){
-    const rows=await readClaudeHistory(t.claudeId);
+    const {rows,cursor}=await readClaudeHistory(t.claudeId,t.claudeHistoryCursor);
     if(occupied())return json(res,409,{message:'请等待当前任务结束'});
     t.messages=mergeClaudeHistory(t.messages,rows);
+    t.claudeHistoryCursor=cursor;
    }
-   t.sharedIds=t.messages.filter(m=>!m.pending).map(m=>m.id);
-   t.sharedCount=t.sharedIds.length;
+   stageHistoryChanges(t);
    t.sharedAt=new Date().toISOString();
   }
   await save();publish();return json(res,200,view());

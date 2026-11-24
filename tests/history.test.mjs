@@ -27,3 +27,14 @@ test('an MCP isError result is failed even when its transport reports completion
  assert.equal(messagesFromTurns(history.turns)[0].status,'failed');
  assert.equal(messagesFromTurns(history.turns)[0].error,'Mac locked');
 });
+
+test('incremental history stops at the cached turn and refreshes the boundary',async()=>{
+ const client={rpc:async(method,params)=>{
+  if(method==='thread/read')return {thread:{id:'same'}};
+  assert.equal(params.cursor,undefined);
+  return {data:[turn('3','new'),turn('2','current'),turn('1','older')],nextCursor:'older-page'};
+ }};
+ const result=await readSession(client,'same','2');
+ assert.equal(result.matchedAnchor,true);
+ assert.deepEqual(result.turns.map(t=>t.id),['2','3']);
+});

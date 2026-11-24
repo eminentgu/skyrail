@@ -32,13 +32,19 @@ export function messagesFromTurns(turns){
  }
  return messages;
 }
-export async function readSession(codex,threadId){
+export async function readSession(codex,threadId,anchor){
  const {thread}=await codex.rpc('thread/read',{threadId});
- let turns=[];
+ let turns=[],matchedAnchor=false;
  try{
   let cursor;const cursors=new Set();
   do{
    const page=await codex.rpc('thread/turns/list',{threadId,limit:20,itemsView:'full',sortDirection:'desc',...(cursor?{cursor}:{})});
+   const boundary=anchor ? page.data.findIndex(turn=>turn.id===anchor) : -1;
+   if(boundary>=0){
+    turns.push(...page.data.slice(0,boundary+1).map(compactTurn));
+    matchedAnchor=true;
+    break;
+   }
    turns.push(...page.data.map(compactTurn));cursor=page.nextCursor;
    if(cursor&&cursors.has(cursor))throw Error('Codex 历史分页没有推进，未覆盖本地记录');
    if(cursor)cursors.add(cursor);
@@ -48,7 +54,7 @@ export async function readSession(codex,threadId){
   if(!/unsupported|not supported|unknown method|not implemented/i.test(e.message))throw e;
   turns=(await codex.rpc('thread/read',{threadId,includeTurns:true})).thread.turns.map(compactTurn);
  }
- return {...thread,turns};
+ return {...thread,turns,matchedAnchor};
 }
 function compactTurn(turn){
  return {...turn,items:(turn.items||[]).map(item=>{
@@ -65,7 +71,8 @@ export function applySession(thread,native,{previousMessages=[]}={}){
  // Keep a submission whose result is unknown until its client id is found in
  // Codex history. Never synthesize a second native user message on refresh.
  for(const local of thread.messages||[])if(local.pending&&!seen.has(local.id))messages.push(local);
- for(const message of messages){const local=(thread.messages||[]).find(m=>m.id===message.id);if(local?.attachments?.length){message.attachments=local.attachments;message.text=local.text}}
+ const localById=new Map((thread.messages||[]).map(m=>[m.id,m]));
+ for(const message of messages){const local=localById.get(message.id);if(local?.attachments?.length){message.attachments=local.attachments;message.text=local.text}}
  const claudeMessages=(thread.messages||[]).filter(m=>m.source==='claude'&&!seen.has(m.id)&&!m.pending);
  if(claudeMessages.length){
   // Native turns share timestamps; stable sorting keeps their item order.

@@ -1,7 +1,9 @@
 {
   "对话后端": "Agent harness",
   "同步两端记录": "Sync both histories",
-  "已准备 {0} 条记录": "{0} entries ready",
+  "本次新增或更新 {0} 条记录": "{0} new or updated entries",
+  "已同步历史记录": "History synced",
+  "没有新的记录": "No new entries",
   "将本对话历史用于另一端的下一轮": "Include this history on the other agent’s next turn",
   "Claude Code 正在处理": "Claude Code is working",
   "Claude Code 需要配置 ARK_API_KEY": "Configure ARK_API_KEY on the Mac to use Claude Code",

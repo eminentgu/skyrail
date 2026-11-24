@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process';
 import {createInterface} from 'node:readline';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 
 export const claudeModel = () => process.env.SKYRAIL_ARK_MODEL || 'deepseek-v4-1-flash-261017';
@@ -12,6 +12,26 @@ export function transcriptResult(content) {
  return Array.isArray(content) ? content.map(block =>
   block.type === 'image' ? {type:'text',text:'[图片]'} : block
  ) : content;
+}
+
+export function stageHistoryChanges(thread) {
+ const selected=new Set(thread.sharedIds || []);
+ const versions={};
+ const updated=new Set();
+ let count=0;
+ for(const message of thread.messages){
+  if(message.pending)continue;
+  const version=createHash('sha256').update(JSON.stringify([message.role,message.text,message.arguments,message.result,message.status,message.error,message.attachments])).digest('base64url');
+  versions[message.id]=version;
+  if(!selected.has(message.id)){selected.add(message.id);count++}
+  else if(thread.sharedVersions?.[message.id] && thread.sharedVersions[message.id]!==version){updated.add(message.id);count++}
+ }
+ for(const ids of Object.keys(thread.deliveredIds||{})){
+  if(updated.size)thread.deliveredIds[ids]=thread.deliveredIds[ids].filter(id=>!updated.has(id));
+ }
+ thread.sharedIds=[...selected];
+ thread.sharedVersions=versions;
+ thread.sharedDeltaCount=count;
 }
 
 export function historyFor(thread, target) {
