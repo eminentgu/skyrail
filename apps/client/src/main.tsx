@@ -21,6 +21,8 @@ import { SessionDrawer } from "./SessionDrawer";
 import { Icon, BrandMark } from "./Icon";
 type Message = ChatMessage;
 type Thread = {
+  model?: string;
+  effort?: string | null;
   id: string;
   title: string;
   messages: Message[];
@@ -102,6 +104,18 @@ function App() {
   useEffect(() => { localStorage.setItem("skyrail.mobile-computer", mobileFloating ? "floating" : "full"); }, [mobileFloating]);
   useEffect(() => { localStorage.setItem("skyrail.desktop-computer", desktopComputer); }, [desktopComputer]);
   const [composerExpanded, expandComposer] = useState(false);
+  const [models, setModels] = useState<{id:string; name:string; efforts:string[]; isDefault:boolean}[]>([]);
+  const [modelsFailed, setModelsFailed] = useState(false);
+  const [modelAttempt, retryModels] = useState(0);
+  useEffect(() => {
+    if (!composerExpanded || !token || state.runtime !== "connected") return;
+    const controller = new AbortController();
+    setModelsFailed(false);
+    post("models", {}, controller.signal).then(result => {
+      if (!controller.signal.aborted) setModels(result.models);
+    }).catch(() => { if (!controller.signal.aborted) setModelsFailed(true); });
+    return () => controller.abort();
+  }, [composerExpanded, token, state.runtime, modelAttempt]);
   const hasComputer = (!!state.lease.app && state.lease.threadId === selected) ||
     !!state.desktop?.connected;
   function open(value: boolean) {
@@ -516,6 +530,15 @@ function App() {
       showHistory(false);
     });
   }
+  function chooseModel(model: string, effort?: string | null) {
+    void act(async () => {
+      const id = selected || await create();
+      const result = await post(`threads/${id}/model`, {model, effort});
+      setState(previous => ({...previous, threads:previous.threads.map(item =>
+        item.id === id ? {...item, model:result.model, effort:result.effort} : item)}));
+    });
+  }
+  const effortModel = models.find(item => thread?.model ? item.id === thread.model : item.isDefault);
   async function send() {
     if (
       (!text.trim() && !attachments.length) ||
@@ -803,13 +826,13 @@ function App() {
             />
           )}
           {guide && (
-            <div className="chat-guide">
+            <dialog className="settings-sheet" aria-labelledby="settings-title" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => showGuide(false)}>
               <div className="guide-heading">
-                <strong>{ui("说出任务，让 Codex 动手。")}</strong>
+                <h2 id="settings-title">{ui("权限与电脑设置")}</h2>
                 <button
                   className="icon-button"
                   onClick={() => showGuide(false)}
-                  aria-label={ui("关闭指南")}
+                  aria-label={ui("关闭")}
                 >
                   <Icon name="close" size={16} />
                 </button>
@@ -820,21 +843,7 @@ function App() {
                 post={post}
                 onSnapshot={setState}
               />
-              <p>
-                {ui(
-                  "例如“打开计算器，计算 2 的 10 次方”。允许应用访问后，可查看画面或随时接管。",
-                )}
-              </p>
-              <div>
-                <button
-                  onClick={() => {
-                    setText(ui("打开本机计算器，计算 2 的 10 次方"));
-                    showGuide(false);
-                    composerRef.current?.focus();
-                  }}
-                >
-                  {ui("试试计算器")}
-                </button>
+              <div className="settings-links">
                 <button
                   onClick={() => {
                     open(true);
@@ -853,7 +862,7 @@ function App() {
                   {ui("应用工具设置")}
                 </button>
               </div>
-            </div>
+            </dialog>
           )}
           <div
             className="messages"
@@ -1077,48 +1086,59 @@ function App() {
                   onClick={() => expandComposer(!composerExpanded)}>
                   <Icon name={composerExpanded ? "close" : "plus"} size={20} />
                 </button>
+                {composerExpanded && <div className="composer-tray">
+                  <div className="tray-actions">
                 <button
-                  className="composer-images"
+                  className="tray-action"
                   type="button"
                   aria-label={ui("添加图片")}
                   title={ui("添加图片，可粘贴或拖入")}
                   disabled={imageUploads.uploading || !token}
                   onClick={() => imagePicker.current?.click()}
                 >
-                  <Icon name="image" size={18} />
+                  <Icon name="image" size={18} />{ui("图片")}
                 </button>
                 <button
-                  className="composer-files"
+                  className="tray-action"
                   type="button"
                   aria-label={ui("文件上传与下载")}
                   title={ui("文件上传与下载")}
                   onClick={() => showFiles(true)}
                 >
-                  <Icon name="folder" size={18} />
+                  <Icon name="folder" size={18} />{ui("文件")}
                 </button>
-                <span className="composer-context">
-                  <span
-                    className={
-                      "status-dot " +
-                      (state.runtime === "connected" ? "" : "offline")
-                    }
-                  />
-                  Codex <span className="composer-separator">/</span>
-                  {ui("本机 Mac")}
-                </span>
                 <button
-                  className="composer-guide"
+                  className="tray-action"
                   type="button"
                   onClick={() => showGuide(!guide)}
                   aria-label={ui("权限与电脑设置")}
                 >
                   <Icon name="settings" size={16} />
-                  <span className="permission-mode-label">
-                    {state.permissions?.fullAccess === false
-                      ? ui("按需确认")
-                      : ui("全部允许")}
-                  </span>
+                  {ui("设置")}
                 </button>
+                  </div>
+                  <div className="tray-fields">
+                <label className="composer-model">
+                  {ui("模型")}
+                  <select value={thread?.model || ""} disabled={busy || !models.length || network !== "online"}
+                    onChange={event => chooseModel(event.target.value)}>
+                    <option value="" disabled>{ui("会话默认模型")}</option>
+                    {thread?.model && !models.some(item => item.id === thread.model) &&
+                      <option value={thread.model}>{thread.model}</option>}
+                    {models.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                  {modelsFailed && <button type="button" onClick={() => retryModels(n => n + 1)}>{ui("重新加载模型")}</button>}
+                </label>
+                {effortModel?.efforts?.length ? <label className="composer-model composer-effort">
+                  {ui("思考强度")}
+                  <select value={thread?.effort || ""} disabled={busy || network !== "online"}
+                    onChange={event => chooseModel(effortModel.id, event.target.value || null)}>
+                    <option value="">{ui("模型默认")}</option>
+                    {effortModel.efforts.map(level => <option key={level} value={level}>{ui(({low:"低",medium:"中",high:"高",xhigh:"很高",max:"最高",ultra:"超高"} as Record<string,string>)[level] || level)}</option>)}
+                  </select>
+                </label> : null}
+                  </div>
+                </div>}
                 <span className="keyboard-shortcut">{ui("↵ 发送")}</span>
                 {syncing ? (
                   <button type="button" disabled>

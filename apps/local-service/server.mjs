@@ -79,6 +79,17 @@ async function syncNative(thread){
   }catch(e){thread.syncError=e.message;publish();throw e}
  })().finally(()=>syncing.delete(thread.id));syncing.set(thread.id,work);return work;
 }
+async function listModels(){
+ await codex.connect();
+ const models=[];
+ let cursor=null;
+ do {
+  const page=await codex.rpc('model/list',{limit:100,cursor});
+  for(const item of page.data)models.push({id:item.model,name:item.displayName||item.model,isDefault:item.isDefault,efforts:(item.supportedReasoningEfforts||[]).map(option=>option.reasoningEffort),defaultEffort:item.defaultReasoningEffort});
+  cursor=page.nextCursor;
+ } while(cursor);
+ return models;
+}
 const stream=new MacStream(root);
 const power=new MacPower({onError:()=>console.warn('Skyrail could not prevent system idle sleep')});
 const syncPower=()=>power.setActive(desktop.connected||desktop.active||stream.viewing||threads.some(t=>['running','submitting'].includes(t.status)),{display:desktop.connected||desktop.active||stream.viewing||!!(mac.state.app&&!mac.state.health?.locked&&threads.some(t=>t.id===mac.state.threadId&&['running','submitting'].includes(t.status)))});
@@ -290,6 +301,7 @@ const server=http.createServer(async(req,res)=>{
  if(req.method!=='POST'||req.headers['x-skyrail-token']!==token)return json(res,403,{message:'会话校验失败'});
  try{
  let raw='';for await(const c of req){raw+=c;if(raw.length>64000)throw Object.assign(new Error('消息过长'),{status:413})}const body=JSON.parse(raw||'{}');
+ if(url.pathname==='/v1/models')return json(res,200,{models:await listModels()});
  if(url.pathname==='/v1/desktop/status')return json(res,200,{...await probeDesktop(),...desktop.status(),username:userInfo().username,credentials:await desktopCredentials.status()});
  if(url.pathname==='/v1/desktop/credentials')return json(res,200,await desktopCredentialRequest(desktop,desktopCredentials,'read',body));
  if(url.pathname==='/v1/desktop/credentials/save')return json(res,200,await desktopCredentialRequest(desktop,desktopCredentials,'save',body));
@@ -374,7 +386,7 @@ const server=http.createServer(async(req,res)=>{
   }
   await control;mac.state.humanClientId=body.owner==='human'?body.clientId:null;publish();return json(res,200,view());
  }
- const match=url.pathname.match(/^\/v1\/threads\/([^/]+)\/(messages|stop|delete|restore|sync|connection|reconnect|stop-owner)$/);const t=threads.find(t=>t.id===match?.[1]);
+ const match=url.pathname.match(/^\/v1\/threads\/([^/]+)\/(messages|model|stop|delete|restore|sync|connection|reconnect|stop-owner)$/);const t=threads.find(t=>t.id===match?.[1]);
  if(!t)return json(res,404,{message:'对话不存在'});
  if(['connection','reconnect','stop-owner'].includes(match[2])){
   if(t.deletedAt||!t.codexId)return json(res,404,{message:'原会话不存在'});
@@ -394,6 +406,14 @@ const server=http.createServer(async(req,res)=>{
  }
  if(match[2]==='restore'){t.deletedAt=null;await save();publish();return json(res,200,view())}
  if(t.deletedAt)return json(res,410,{message:'这段对话已移到最近删除，可从历史记录恢复'});
+ if(match[2]==='model'){
+  const model=(await listModels()).find(item=>item.id===body.model);
+  if(!model)return json(res,400,{message:'请选择可用模型'});
+  const effort=Object.hasOwn(body,'effort')?body.effort:(model.efforts.includes(t.effort)?t.effort:null);
+  if(effort!==null&&!model.efforts.includes(effort))return json(res,400,{message:'请选择当前模型支持的思考强度'});
+  t.model=model.id;t.effort=effort;t.defaultEffort=model.defaultEffort;
+  await save();publish();return json(res,200,{model:t.model,effort});
+ }
  if(match[2]==='sync'){await syncNative(t);return json(res,200,view())}
  if(match[2]==='stop'){officialAgent.revoke(t.id);if(mac.state.threadId===t.id)await mac.control(mac.state.epoch,'none');for(const [id,a] of approvals){if(a.threadId===t.id){approvals.delete(id);a.resolve(false)}}await interruptThread(t);return json(res,202,{accepted:true})}
  if(desktop.active)return json(res,409,{message:'人工全桌面控制期间已暂停新任务，请先断开控制台'});
@@ -405,6 +425,8 @@ const server=http.createServer(async(req,res)=>{
  await codex.connect();runtime='connected';
  if(t.messages.some(m=>m.id===body.clientMessageId))return json(res,200,scope===null?t:{id:t.id,status:t.status});
  if(['running','submitting','syncing','external_running'].includes(t.status))return json(res,409,{message:'会话正在执行或同步，请等待结束后继续'});
+ const model=t.model;
+ const effort=t.effort||t.defaultEffort;
  const attached=await threadFiles.attachments(t,body.attachments||[]);
  t.status='submitting';t.error=null;if(mac.state.threadId===t.id){mac.agentObservationVersion=-1;officialAgent.invalidateObservation();}const userMessage={id:body.clientMessageId,role:'user',text:body.text||'请查看所附文件。',attachments:attached.map(({localPath,...file})=>file),createdAt:new Date().toISOString(),pending:true};t.messages.push(userMessage);if(!t.title||t.title==='新对话')t.title=(body.text.trim()||attached[0]?.name||'图片对话').slice(0,40);await save();publish();
  let turnRequested=false;
@@ -415,7 +437,7 @@ const server=http.createServer(async(req,res)=>{
  if(!t.nativeNamed&&!t.imported){try{await writer.rpc('thread/name/set',{threadId:t.codexId,name:t.title});t.nativeNamed=true}catch{}}
  const input=[{type:'skill',name:'skyrail-computer-use',path:skillPath},{type:'text',text:body.text||'请查看所附文件。'},...attachmentInputs(attached)];
  if(desktop.active)throw Object.assign(Error('人工控制台已打开，新任务已取消；请关闭控制台后再发送'),{status:409});
- turnRequested=true;const r=await writer.rpc('turn/start',{threadId:t.codexId,input,...turnPermissions(permissions.fullAccess,cwd),clientUserMessageId:body.clientMessageId});t.turnId=r.turn.id;userMessage.pending=false;t.errorCode=null;delete t.retryDraft;
+ turnRequested=true;const r=await writer.rpc('turn/start',{threadId:t.codexId,input,...(model?{model}:{}),...(effort?{effort}:{}),...turnPermissions(permissions.fullAccess,cwd),clientUserMessageId:body.clientMessageId});t.turnId=r.turn.id;userMessage.pending=false;t.errorCode=null;delete t.retryDraft;
  if(t.status==='submitting')t.status='running';await save();publish();return json(res,202,scope===null?t:{id:t.id,status:t.status});
  }catch(e){
   if(!turnRequested)t.messages=t.messages.filter(m=>m!==userMessage);
