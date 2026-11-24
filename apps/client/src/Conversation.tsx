@@ -7,6 +7,7 @@ import { MessageAttachments, Picture } from "./Attachments";
 import { Icon } from "./Icon";
 export type ChatMessage = {
   id: string;
+  source?: string;
   attachments?: Attachment[];
   role: string;
   text: string;
@@ -28,7 +29,7 @@ export function groupMessages(messages: ChatMessage[]) {
   const result: ChatMessage[] = [];
   for (const message of messages) {
     const last = result.at(-1);
-    if (message.role === "assistant" && last?.role === "assistant") {
+    if (message.role === "assistant" && last?.role === "assistant" && last.source === message.source) {
       last.text += "\n\n" + message.text;
     } else result.push({ ...message });
   }
@@ -241,7 +242,7 @@ export function Conversation({
               <span aria-hidden="true" className={"avatar " + m.role}>
                 <Icon name={m.role === "user" ? "chat" : "code"} size={15} />
               </span>
-              <span>{m.role === "user" ? ui("你") : "Codex"}</span>
+              <span>{m.role === "user" ? ui("你") : m.source === "claude" ? "Claude Code" : "Codex"}</span>
               <time dateTime={m.createdAt}>{time}</time>
               {m.pending && <small>{ui("发送结果待确认")}</small>}
               {m.role === "assistant" && m.text && <CopyReply text={m.text} />}

@@ -4169,3 +4169,6 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
  .composer-model select { font-size: 16px; }
  .composer-tray { max-height: 36dvh; overflow: auto; }
 }
+
+.harness-sync { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; color:var(--muted); }
+.harness-sync button { background:var(--subtle); color:var(--ink); }
