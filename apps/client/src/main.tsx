@@ -605,14 +605,15 @@ function App() {
       );
     }
   }, [selected, thread?.retryDraft?.text]);
+  const selectedRuntime = isClaude ? (ready ? "connected" : "disconnected") : state.runtime;
   const runtimeLabel =
     network === "offline"
       ? ui("网络已断开")
       : network === "recovering"
         ? ui("正在恢复连接…")
-        : state.runtime === "connected"
+        : selectedRuntime === "connected"
           ? ui("已连接")
-          : state.runtime === "connecting"
+          : selectedRuntime === "connecting"
             ? ui("连接中")
             : ui("未连接");
   const approvalCount = (state.approvals || []).filter(
@@ -751,7 +752,7 @@ function App() {
               </div>
             </div>
             <div className="conversation-actions">
-              <span className={"connection " + (network === "online" ? state.runtime : "disconnected")} title={runtimeLabel} aria-label={runtimeLabel}>
+              <span className={"connection " + (network === "online" ? selectedRuntime : "disconnected")} title={runtimeLabel} aria-label={runtimeLabel}>
                 <span className="status-dot" />
                 {runtimeLabel}
               </span>

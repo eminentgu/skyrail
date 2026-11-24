@@ -40,15 +40,16 @@ export function createComputerMcp({ tools, findThread, call }) {
       case "tools/call":
         try {
           if (findThread(req.headers.authorization) !== thread ||
-              !["running", "submitting"].includes(thread.status) || !thread.codexId)
+              !["running", "submitting"].includes(thread.status))
             throw Error("Skyrail computer control requires an active turn in this session.");
           if (!tools.some(tool => tool.name === params?.name) ||
               !params.arguments || typeof params.arguments !== "object")
             throw Error("Invalid Skyrail computer tool request.");
-          const result = await call({
-            threadId: thread.codexId, callId: randomUUID(),
+          const result = await call(thread, {
+            callId: randomUUID(),
             tool: params.name, arguments: params.arguments,
-          });
+          }, () => findThread(req.headers.authorization) === thread &&
+            ["running", "submitting"].includes(thread.status));
           return send({
             isError: !result.success,
             content: result.contentItems.map(item => {

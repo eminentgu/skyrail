@@ -4,12 +4,13 @@ import { createServer } from "node:http";
 import { createComputerMcp } from "../packages/codex/computer-mcp.mjs";
 
 test("resumed session MCP authenticates and forwards only to its active thread", async (t) => {
-  const thread = { status: "idle", codexId: "original" };
+  const thread = { status: "idle", id: "skyrail-thread" };
   const calls = [];
   const server = createServer(createComputerMcp({
     tools: [{ type: "function", name: "skyrail_computer", inputSchema: {} }],
     findThread: auth => auth === "Bearer private-writer" ? thread : null,
-    call: async request => {
+    call: async (owner, request) => {
+      assert.equal(owner, thread);
       calls.push(request);
       return { success: true, contentItems: [
         { type: "inputText", text: "status" },
@@ -33,7 +34,7 @@ test("resumed session MCP authenticates and forwards only to its active thread",
   thread.status = "running";
   const { result } = await (await request("tools/call", params)).json();
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].threadId, "original");
+  assert.equal(calls[0].tool, "skyrail_computer");
   assert.deepEqual(result.content, [
     { type: "text", text: "status" },
     { type: "image", mimeType: "image/png", data: "AAAA" },
