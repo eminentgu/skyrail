@@ -21,6 +21,11 @@ import { SessionDrawer } from "./SessionDrawer";
 import { Icon, BrandMark } from "./Icon";
 type Message = ChatMessage;
 type Thread = {
+  harness?: "codex" | "claude";
+  sharedCount?: number;
+  sharedAt?: string;
+  model?: string;
+  effort?: string | null;
   id: string;
   title: string;
   messages: Message[];
@@ -36,6 +41,7 @@ type Thread = {
   syncError?: string;
 };
 type State = {
+  claude?: {configured:boolean; model:string};
   permissions?: { fullAccess: boolean };
   desktop?: { active: boolean; connected?: boolean };
   threads: Thread[];
@@ -102,6 +108,18 @@ function App() {
   useEffect(() => { localStorage.setItem("skyrail.mobile-computer", mobileFloating ? "floating" : "full"); }, [mobileFloating]);
   useEffect(() => { localStorage.setItem("skyrail.desktop-computer", desktopComputer); }, [desktopComputer]);
   const [composerExpanded, expandComposer] = useState(false);
+  const [models, setModels] = useState<{id:string; name:string; efforts:string[]; isDefault:boolean}[]>([]);
+  const [modelsFailed, setModelsFailed] = useState(false);
+  const [modelAttempt, retryModels] = useState(0);
+  useEffect(() => {
+    if (!composerExpanded || !token || state.runtime !== "connected") return;
+    const controller = new AbortController();
+    setModelsFailed(false);
+    post("models", {}, controller.signal).then(result => {
+      if (!controller.signal.aborted) setModels(result.models);
+    }).catch(() => { if (!controller.signal.aborted) setModelsFailed(true); });
+    return () => controller.abort();
+  }, [composerExpanded, token, state.runtime, modelAttempt]);
   const hasComputer = (!!state.lease.app && state.lease.threadId === selected) ||
     !!state.desktop?.connected;
   function open(value: boolean) {
@@ -166,6 +184,8 @@ function App() {
     }
   }, [text, panel]);
   const thread = state.threads.find((t) => t.id === selected);
+  const isClaude = thread?.harness === "claude";
+  const ready = isClaude ? !!state.claude?.configured : state.runtime === "connected";
   const earlier = older?.thread === selected ? older : null;
   const currentMessages = thread?.messages || [];
   const recentIds = new Set(currentMessages.map((message) => message.id));
@@ -516,6 +536,15 @@ function App() {
       showHistory(false);
     });
   }
+  function chooseModel(model: string, effort?: string | null) {
+    void act(async () => {
+      const id = selected || await create();
+      const result = await post(`threads/${id}/model`, {model, effort});
+      setState(previous => ({...previous, threads:previous.threads.map(item =>
+        item.id === id ? {...item, model:result.model, effort:result.effort} : item)}));
+    });
+  }
+  const effortModel = models.find(item => thread?.model ? item.id === thread.model : item.isDefault);
   async function send() {
     if (
       (!text.trim() && !attachments.length) ||
@@ -523,7 +552,7 @@ function App() {
       busy ||
       imageUploads.uploading ||
       network !== "online" ||
-      state.runtime !== "connected"
+      !ready
     )
       return;
     const value = text;
@@ -803,13 +832,13 @@ function App() {
             />
           )}
           {guide && (
-            <div className="chat-guide">
+            <dialog className="settings-sheet" aria-labelledby="settings-title" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => showGuide(false)}>
               <div className="guide-heading">
-                <strong>{ui("说出任务，让 Codex 动手。")}</strong>
+                <h2 id="settings-title">{ui("权限与电脑设置")}</h2>
                 <button
                   className="icon-button"
                   onClick={() => showGuide(false)}
-                  aria-label={ui("关闭指南")}
+                  aria-label={ui("关闭")}
                 >
                   <Icon name="close" size={16} />
                 </button>
@@ -820,21 +849,7 @@ function App() {
                 post={post}
                 onSnapshot={setState}
               />
-              <p>
-                {ui(
-                  "例如“打开计算器，计算 2 的 10 次方”。允许应用访问后，可查看画面或随时接管。",
-                )}
-              </p>
-              <div>
-                <button
-                  onClick={() => {
-                    setText(ui("打开本机计算器，计算 2 的 10 次方"));
-                    showGuide(false);
-                    composerRef.current?.focus();
-                  }}
-                >
-                  {ui("试试计算器")}
-                </button>
+              <div className="settings-links">
                 <button
                   onClick={() => {
                     open(true);
@@ -853,7 +868,7 @@ function App() {
                   {ui("应用工具设置")}
                 </button>
               </div>
-            </div>
+            </dialog>
           )}
           <div
             className="messages"
@@ -959,7 +974,7 @@ function App() {
                     ? ui("另一端正在执行，记录会自动同步")
                     : approvalCount
                       ? ui("等待你的操作确认")
-                      : ui("Codex 正在处理")}
+                      : (isClaude ? ui("Claude Code 正在处理") : ui("Codex 正在处理"))}
               </div>
             )}
             {thread?.error && (
@@ -991,6 +1006,8 @@ function App() {
                 ))}
               </div>
             )}
+            {isClaude && !state.claude?.configured && !composerExpanded &&
+              <small role="status">{ui("Claude Code 需要配置 ARK_API_KEY")}</small>}
             {error && (
               <div className="error" role="alert">
                 {error}
@@ -1003,7 +1020,7 @@ function App() {
                 </button>
               </div>
             )}
-            {state.runtime !== "connected" && (
+            {!isClaude && state.runtime !== "connected" && (
               <div className="connect-strip">
                 <span>{ui("连接本机 Codex，继续你的任务")}</span>
                 <button disabled={busy} onClick={connect}>
@@ -1050,7 +1067,7 @@ function App() {
                 rows={1}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={ui(desktopLayout ? "给 Codex 发消息…" : "发消息…")}
+                placeholder={ui(isClaude || !desktopLayout ? "发消息…" : "给 Codex 发消息…")}
                 aria-describedby={state.desktop?.active ? "composer-handoff-hint" : undefined}
                 aria-label={ui("消息")}
                 onKeyDown={(e) => {
@@ -1077,48 +1094,81 @@ function App() {
                   onClick={() => expandComposer(!composerExpanded)}>
                   <Icon name={composerExpanded ? "close" : "plus"} size={20} />
                 </button>
+                {composerExpanded && <div className="composer-tray">
+                  <div className="tray-actions">
                 <button
-                  className="composer-images"
+                  className="tray-action"
                   type="button"
                   aria-label={ui("添加图片")}
                   title={ui("添加图片，可粘贴或拖入")}
                   disabled={imageUploads.uploading || !token}
                   onClick={() => imagePicker.current?.click()}
                 >
-                  <Icon name="image" size={18} />
+                  <Icon name="image" size={18} />{ui("图片")}
                 </button>
                 <button
-                  className="composer-files"
+                  className="tray-action"
                   type="button"
                   aria-label={ui("文件上传与下载")}
                   title={ui("文件上传与下载")}
                   onClick={() => showFiles(true)}
                 >
-                  <Icon name="folder" size={18} />
+                  <Icon name="folder" size={18} />{ui("文件")}
                 </button>
-                <span className="composer-context">
-                  <span
-                    className={
-                      "status-dot " +
-                      (state.runtime === "connected" ? "" : "offline")
-                    }
-                  />
-                  Codex <span className="composer-separator">/</span>
-                  {ui("本机 Mac")}
-                </span>
                 <button
-                  className="composer-guide"
+                  className="tray-action"
                   type="button"
                   onClick={() => showGuide(!guide)}
                   aria-label={ui("权限与电脑设置")}
                 >
                   <Icon name="settings" size={16} />
-                  <span className="permission-mode-label">
-                    {state.permissions?.fullAccess === false
-                      ? ui("按需确认")
-                      : ui("全部允许")}
-                  </span>
+                  {ui("设置")}
                 </button>
+                  </div>
+                  <div className="tray-fields">
+                <label className="composer-model">{ui("对话后端")}
+                  <select value={thread?.harness || "codex"} disabled={running || busy || network !== "online"}
+                    onChange={event => {
+                      const harness=event.target.value;
+                      void act(async () => {
+                        const id=selected || await create();
+                        setState(await post(`threads/${id}/harness`, {harness}));
+                      });
+                    }}>
+                    <option value="codex">Codex</option>
+                    <option value="claude">Claude Code</option>
+                  </select>
+                </label>
+                {isClaude ? <span className="composer-model">{state.claude?.model}
+                  {!state.claude?.configured && <small>{ui("Claude Code 需要配置 ARK_API_KEY")}</small>}
+                </span> : <>                <label className="composer-model">
+                  {ui("模型")}
+                  <select value={thread?.model || ""} disabled={busy || !models.length || network !== "online"}
+                    onChange={event => chooseModel(event.target.value)}>
+                    <option value="" disabled>{ui("会话默认模型")}</option>
+                    {thread?.model && !models.some(item => item.id === thread.model) &&
+                      <option value={thread.model}>{thread.model}</option>}
+                    {models.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                  {modelsFailed && <button type="button" onClick={() => retryModels(n => n + 1)}>{ui("重新加载模型")}</button>}
+                </label>
+                {effortModel?.efforts?.length ? <label className="composer-model composer-effort">
+                  {ui("思考强度")}
+                  <select value={thread?.effort || ""} disabled={busy || network !== "online"}
+                    onChange={event => chooseModel(effortModel.id, event.target.value || null)}>
+                    <option value="">{ui("模型默认")}</option>
+                    {effortModel.efforts.map(level => <option key={level} value={level}>{ui(({low:"低",medium:"中",high:"高",xhigh:"很高",max:"最高",ultra:"超高"} as Record<string,string>)[level] || level)}</option>)}
+                  </select>
+                </label> : null}</>}
+                  </div>
+                  <div className="harness-sync">
+                    <button type="button" disabled={!selected || running || busy || network !== "online"}
+                      onClick={() => act(async () => setState(await post(`threads/${selected}/share-history`)))}>
+                      <Icon name="refresh" size={15}/>{ui("同步两端记录")}
+                    </button>
+                    <small role="status">{thread?.sharedAt ? ui("已准备 {0} 条记录",thread.sharedCount||0) : ui("将本对话历史用于另一端的下一轮")}</small>
+                  </div>
+                </div>}
                 <span className="keyboard-shortcut">{ui("↵ 发送")}</span>
                 {syncing ? (
                   <button type="button" disabled>
@@ -1152,7 +1202,7 @@ function App() {
                       imageUploads.uploading ||
                       network !== "online" ||
                       (!text.trim() && !attachments.length) ||
-                      state.runtime !== "connected"
+                      !ready
                     }
                     aria-label={state.desktop?.active ? ui("交给 Codex") : ui("发送消息")}
                     title={state.desktop?.active ? ui("发送后交给 Codex，电脑画面保持连接。") : ui("发送消息")}

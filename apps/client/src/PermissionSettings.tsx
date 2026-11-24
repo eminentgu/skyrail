@@ -26,7 +26,7 @@ export function PermissionSettings({
       .then((h) => {
         if (active) setHealth(h);
       })
-      .catch(() => {});
+      .catch((e) => { if (active) setError(e.message); });
     return () => {
       active = false;
     };
@@ -69,6 +69,7 @@ export function PermissionSettings({
         )}
         {busy ? ui("执行中请先停止任务再切换。") : ""}
       </p>
+      <h3>macOS</h3>
       <div className="system-permissions">
         <span>
           {ui("辅助功能")}{" "}
@@ -101,6 +102,7 @@ export function PermissionSettings({
       >
         {ui("打开 macOS 隐私设置")}
       </button>
+      <h3>Codex Computer Use</h3>
       {health?.computerBackend === "official" && (
         <div className="official-connection-status" role="status">
           <p>{ui(health.officialClient?.authentication === "accepted"

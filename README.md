@@ -167,3 +167,9 @@ Model smoke scripts are opt-in, use your Codex account, and can incur usage. The
 MIT licensed. Dependencies and external services have their own terms. Chinese and English feedback is welcome; support is best effort, without a response-time commitment.
 
 Chat recovery: submitted tasks stay on the Mac when the browser disconnects. Skyrail reconnects with backoff, checks heartbeats, and retrieves the latest transcript when connectivity returns. Returning from a suspended mobile page triggers a fresh connection. Existing messages and the current unsent draft remain visible; tasks are never automatically resent. This requires the Mac service and Codex to remain available. Recovery status appears within chat, without covering the computer viewer.
+
+### Switch between Codex and Claude Code
+
+Open **+ → Agent harness** to select a runtime for this chat. Claude creates a native session and resumes the same UUID on later turns. Install the Claude CLI on the host (or set `SKYRAIL_CLAUDE_BIN`) and provide `ARK_API_KEY` in the service environment. Set `SKYRAIL_ARK_MODEL` to override the default `deepseek-v4-1-flash-261017`. [Ark's Claude Code setup](https://docs.volcengine.com/docs/ark/ai-tools-claude-code?lang=en)
+
+**Sync both histories** reads the linked native sessions and marks their visible history for delivery. The next turn on either backend receives the other backend's outstanding entries, including message bodies, recorded tool activity and attachment references. The sync click makes no model request. Each backend owns its native session. Runtime tool state, private reasoning and attachment binaries are not copied. Claude runs without tools under restricted access and with acceptEdits under full access.

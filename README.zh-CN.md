@@ -167,3 +167,9 @@ npm run setup:mac  # 仅 macOS，修改原生代码后执行
 项目采用 MIT 许可证，依赖和外部服务适用各自条款。欢迎中文或英文反馈；维护为尽力支持，无响应时限承诺。
 
 对话恢复：网页断线不会取消已提交到 Mac 的任务。Skyrail 通过心跳检测与退避重连恢复最新记录，手机从后台返回也会主动重新连接。断线时保留已有消息和当前未发送输入，不自动重发任务；恢复状态显示在对话内，不遮挡电脑画面。本机服务和 Codex 仍需保持可用。
+
+### 在 Codex 和 Claude Code 之间接续
+
+在输入框的 **＋ → 对话后端** 选择 Codex 或 Claude Code。Claude Code 使用本机 CLI，首次执行创建独立的 Claude 会话，后续使用同一个 UUID 接续。宿主服务需要能找到 `claude`（也可设置 `SKYRAIL_CLAUDE_BIN`），并在服务环境设置方舟 `ARK_API_KEY` 和需要的 `SKYRAIL_ARK_MODEL`。默认模型为 `deepseek-v4-1-flash-261017`。[方舟 Claude Code 配置](https://docs.volcengine.com/docs/ark/ai-tools-claude-code?lang=zh)
+
+点 **同步两端记录** 后，Skyrail 读取关联的原生会话，并标记当前完整可见记录。另一端的下一次发送会携带尚未交付的对端记录，包括正文、已记录的工具活动和附件引用。手动同步本身不产生模型调用。原生会话分别保存，运行中的工具、隐藏推理和附件二进制不复制。Claude 在受限权限下使用无工具模式，全权限下使用 CLI 的 acceptEdits 模式。

@@ -1,3 +1,4 @@
+import {historyPrefix} from '../claude/index.mjs';
 import {createHash} from 'node:crypto';
 const labels={status:'检查电脑连接',list_apps:'查看 Mac 应用',open_app:'打开应用',observe:'观察窗口',press:'点击控件',setValue:'填写内容',key:'按键操作'};
 const completedStatus=(item)=>item.success===false||item.result?.isError===true||['failed','declined'].includes(item.status)?'failed':['inProgress','in_progress'].includes(item.status)?'running':'completed';
@@ -17,7 +18,7 @@ export function messagesFromTurns(turns){
    if(item.type==='userMessage'){
     const content=item.content||[];const textParts=content.filter(c=>c.type==='text');
     const injected=textParts.length>1&&textParts[0].text.startsWith('Historical conversation data from an older runtime.')?textParts[0]:null;
-    const text=content.flatMap(c=>c.type==='text'&&c!==injected?[c.text]:c.type==='image'||c.type==='localImage'?['[图片]']:[]).join('\n');
+    const text=content.flatMap(c=>c.type==='text'&&c!==injected&&!(textParts.length>1&&c===textParts[0]&&c.text.startsWith(historyPrefix))?[c.text]:c.type==='image'||c.type==='localImage'?['[图片]']:[]).join('\n');
     if(text)messages.push({...base,id:item.clientId||item.id,role:'user',text});
    }else if(item.type==='agentMessage')messages.push({...base,id:item.id,role:'assistant',text:item.text||''});
    else if(item.type==='dynamicToolCall'){
@@ -65,14 +66,20 @@ export function applySession(thread,native,{previousMessages=[]}={}){
  // Codex history. Never synthesize a second native user message on refresh.
  for(const local of thread.messages||[])if(local.pending&&!seen.has(local.id))messages.push(local);
  for(const message of messages){const local=(thread.messages||[]).find(m=>m.id===message.id);if(local?.attachments?.length){message.attachments=local.attachments;message.text=local.text}}
+ const claudeMessages=(thread.messages||[]).filter(m=>m.source==='claude'&&!seen.has(m.id)&&!m.pending);
+ if(claudeMessages.length){
+  // Native turns share timestamps; stable sorting keeps their item order.
+  messages.push(...claudeMessages);
+  messages.sort((a,b)=>(Date.parse(a.createdAt)||0)-(Date.parse(b.createdAt)||0));
+ }
  const last=native.turns.at(-1);
  const externalActive=last?.status==='inProgress'||native.status?.type==='active';
  const status=externalActive?'external_running':last?.status||'idle';
  const fingerprint=createHash('sha256').update(JSON.stringify({messages,status,name:native.name,updatedAt:native.updatedAt})).digest('hex');
  const changed=thread.nativeFingerprint!==fingerprint;
  if(changed){
-  thread.messages=messages;thread.title=native.name||native.preview?.slice(0,50)||thread.title||'新对话';thread.status=status;
-  thread.error=last?.error?.message||null;thread.cwd=native.cwd;thread.nativeFingerprint=fingerprint;thread.needsResume=true;
+  thread.messages=messages;thread.title=native.name||native.preview?.slice(0,50)||thread.title||'新对话';if(thread.harness!=='claude'||externalActive||thread.status==='external_running')thread.status=status;
+  if(thread.harness!=='claude')thread.error=last?.error?.message||null;thread.cwd=native.cwd;thread.nativeFingerprint=fingerprint;thread.needsResume=true;
  }
  thread.codexId=native.id;thread.originator=native.originator;thread.syncedAt=new Date().toISOString();thread.syncError=null;
  return changed;

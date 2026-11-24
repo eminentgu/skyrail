@@ -4147,3 +4147,28 @@ main, .desktop-view main { max-width: none; padding-bottom: 10px; }
   .computer-takeover-slot {flex:1;justify-content:flex-start;}
 }
 .computer-dock:has(.computer-keyboard-host > *) .computer-controls-toggle {display:none;}
+
+.composer-tray { grid-column: 1 / -1; grid-row: 2; margin: 2px 5px 4px; padding: 8px; border-top: 1px solid var(--line); }
+.tray-actions, .settings-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.tray-actions .tray-action, .settings-links button { border: 0; background: var(--subtle); color: var(--ink); border-radius: 12px; min-height: 42px; padding: 8px 12px; font-size: 13px; }
+.tray-actions .tray-action:last-child { margin-inline-start: auto; }
+.tray-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,135px),1fr)); gap: 8px; margin-top: 8px; }
+.composer-model { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 7px 10px; background: var(--subtle); color: var(--muted); border-radius: 12px; font-size: 12px; }
+.composer-model select { width: 100%; min-width: 0; min-height: 32px; color: var(--ink); font-size: 15px; border: 0; background: transparent; }
+.composer-model:focus-within { outline: 2px solid var(--accent); }
+.settings-sheet { box-sizing: border-box; width: min(430px,calc(100% - 24px)); max-height: min(85dvh,720px); overflow: auto; overscroll-behavior: contain; padding: 20px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); }
+.settings-sheet::backdrop { background: var(--overlay); }
+.settings-sheet h2 { font-size: 19px; margin: 0; }
+.settings-sheet h3 { border-top: 1px solid var(--line); padding-top: 14px; margin: 4px 0 0; font-size: 14px; }
+.settings-sheet .permission-settings { border-top: 0; gap: 8px; margin: 0 0 12px; }
+.settings-sheet .permission-settings button { font-size: 13px; color: var(--accent); background: var(--subtle); border: 0; border-radius: 10px; }
+.settings-sheet .system-permissions span { background: var(--subtle); border-radius: 8px; padding: 6px 9px; }
+.settings-sheet .official-connection-status { display: grid; justify-items: start; gap: 6px; }
+@media(max-width:699px) {
+ .settings-sheet { margin: auto auto max(8px,env(safe-area-inset-bottom)); max-height: 82dvh; }
+ .composer-model select { font-size: 16px; }
+ .composer-tray { max-height: 36dvh; overflow: auto; }
+}
+
+.harness-sync { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; color:var(--muted); }
+.harness-sync button { background:var(--subtle); color:var(--ink); }
