@@ -4,7 +4,7 @@ import {readdir,open} from 'node:fs/promises';
 import {createInterface} from 'node:readline';
 import {homedir} from 'node:os';
 import path from 'node:path';
-import {historyPrefix} from './index.mjs';
+import {historyPrefix,transcriptResult} from './index.mjs';
 
 export function transcriptRows(event) {
  const {type, uuid, timestamp, message}=event;
@@ -19,7 +19,7 @@ export function transcriptRows(event) {
    }else rows.push({...base,id:uuid+':'+index,role:type,text:block.text});
   }else if(block.type==='image')userText.push('[图片]');
   else if(block.type==='tool_use')rows.push({...base,id:'tool:'+block.id,role:'tool',text:block.name,arguments:block.input,status:'running'});
-  else if(block.type==='tool_result')rows.push({...base,id:'tool:'+block.tool_use_id,role:'tool',result:block.content,status:block.is_error?'failed':'completed'});
+  else if(block.type==='tool_result')rows.push({...base,id:'tool:'+block.tool_use_id,role:'tool',result:transcriptResult(block.content),status:block.is_error?'failed':'completed'});
  }
  if(userText.length)rows.unshift({...base,id:uuid,role:'user',text:userText.join('\n')});
  return rows;
