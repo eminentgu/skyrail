@@ -54,3 +54,39 @@ test('imported computer results retain text and omit screenshot bytes',()=>{
   {type:'tool_result',tool_use_id:'c',content}]}});
  assert.deepEqual(row.result,[content[0],{type:'text',text:'[图片]'}]);
 });
+
+test('manual sync keeps undelivered entries and stages only new or revised records',async()=>{
+ const {stageHistoryChanges}=await import('../packages/claude/index.mjs');
+ const thread={messages:[{id:'a',role:'tool',status:'running'}],sharedIds:['a'],deliveredIds:{claude:['a']}};
+ stageHistoryChanges(thread);
+ assert.equal(thread.sharedDeltaCount,0);
+ thread.messages[0].status='completed';
+ thread.messages.push({id:'b',source:'claude',role:'assistant',text:'new'});
+ stageHistoryChanges(thread);
+ assert.equal(thread.sharedDeltaCount,2);
+ stageHistoryChanges(thread);
+ assert.equal(thread.sharedDeltaCount,0);
+ assert.deepEqual(historyFor(thread,'claude').map(m=>m.id),['a']);
+ assert.deepEqual(historyFor(thread,'codex').map(m=>m.id),['b']);
+});
+
+test('Claude cursor resumes at the last complete UTF-8 record and recovers from truncation',async t=>{
+ const fs=await import('node:fs/promises');
+ const {tmpdir}=await import('node:os');
+ const {readClaudeHistory}=await import('../packages/claude/history.mjs');
+ const id='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+ const dir=await fs.mkdtemp(tmpdir()+'/skyrail-history-');
+ t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+ await fs.mkdir(dir+'/project');
+ const file=dir+'/project/'+id+'.jsonl';
+ const line=uuid=>JSON.stringify({type:'user',uuid,sessionId:id,message:{content:'你好'}})+'\n';
+ await fs.writeFile(file,line('one')+line('two').slice(0,20));
+ const first=await readClaudeHistory(id,null,dir);
+ assert.deepEqual(first.rows.map(r=>r.id),['one']);
+ await fs.appendFile(file,line('two').slice(20));
+ const second=await readClaudeHistory(id,first.cursor,dir);
+ assert.deepEqual(second.rows.map(r=>r.id),['two']);
+ assert.deepEqual((await readClaudeHistory(id,second.cursor,dir)).rows,[]);
+ await fs.writeFile(file,line('new'));
+ assert.deepEqual((await readClaudeHistory(id,second.cursor,dir)).rows.map(r=>r.id),['new']);
+});

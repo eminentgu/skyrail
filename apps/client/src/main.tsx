@@ -22,7 +22,7 @@ import { Icon, BrandMark } from "./Icon";
 type Message = ChatMessage;
 type Thread = {
   harness?: "codex" | "claude";
-  sharedCount?: number;
+  sharedDeltaCount?: number;
   sharedAt?: string;
   model?: string;
   effort?: string | null;
@@ -1167,7 +1167,7 @@ function App() {
                       onClick={() => act(async () => setState(await post(`threads/${selected}/share-history`)))}>
                       <Icon name="refresh" size={15}/>{ui("同步两端记录")}
                     </button>
-                    <small role="status">{thread?.sharedAt ? ui("已准备 {0} 条记录",thread.sharedCount||0) : ui("将本对话历史用于另一端的下一轮")}</small>
+                    <small role="status">{thread?.sharedAt ? (thread.sharedDeltaCount===undefined ? ui("已同步历史记录") : thread.sharedDeltaCount ? ui("本次新增或更新 {0} 条记录",thread.sharedDeltaCount) : ui("没有新的记录")) : ui("将本对话历史用于另一端的下一轮")}</small>
                   </div>
                 </div>}
                 <span className="keyboard-shortcut">{ui("↵ 发送")}</span>
